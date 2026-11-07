@@ -1,12 +1,12 @@
 import { Buffer } from 'buffer';
-import { ComputeBudgetProgram, Connection, Message, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
+import { ComputeBudgetProgram, Connection, Message, PublicKey, SendTransactionError, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 
 export const connection = new Connection('https://api.devnet.solana.com', {commitment: 'confirmed', disableRetryOnRateLimit: true});
 const GENESIS = 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
 export const states = ['Created', 'Funded', 'Evidence submitted', 'Approved', 'Released', 'Disputed', 'Refunded'] as const;
 export type Escrow = { address: PublicKey; id: bigint; buyer: PublicKey; seller: PublicKey; arbitrator: PublicKey; amount: bigint; evidence: string; status: number };
 export type Wallet = { publicKey: PublicKey | null; connect(): Promise<{ publicKey: PublicKey }>; signTransaction(tx: Transaction): Promise<Transaction>; on?(event: string, listener: (key: PublicKey | null) => void): void; removeListener?(event: string, listener: (key: PublicKey | null) => void): void };
-export type TransactionStatus = 'awaiting-wallet' | 'submitting' | 'pending' | 'confirmed' | 'failed' | 'unknown';
+export type TransactionStatus = 'awaiting-wallet' | 'submitting' | 'pending' | 'confirmed' | 'failed' | 'expired' | 'unknown';
 export type TransactionUpdate = { status: TransactionStatus; signature?: string; detail: string };
 
 
@@ -121,7 +121,7 @@ export function isSafeWalletMessage(originalBytes: Uint8Array, returnedBytes: Ui
 }
 export function friendlyError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  if (/rejected|user denied|4001/i.test(message)) return 'The wallet request was rejected. You can try again when ready.';
+  if (/user rejected|user denied|rejected by user|rejected the request|4001/i.test(message)) return 'The wallet request was rejected. You can try again when ready.';
   if (/insufficient funds|insufficient lamports|insufficient balance/i.test(message)) return 'Not enough Devnet SOL for the amount, account rent, or transaction fees. Use the Devnet faucet.';
   if (/429|too many requests/i.test(message)) return 'The public Devnet RPC is rate-limited. Wait a moment and check the existing signature before trying again.';
   if (/6003|0x1773|InvalidState/i.test(message)) return 'This action is not allowed in the current escrow state. Reload the escrow.';
@@ -139,7 +139,8 @@ export async function signatureStatus(signature: string): Promise<'confirmed' | 
 export async function send(wallet: Wallet, instruction: TransactionInstruction, update: (value: TransactionUpdate) => void): Promise<string> {
   await checkDevnet();
   if (!wallet.publicKey) throw new Error('Connect your wallet first.');
-  const latest = await connection.getLatestBlockhash('confirmed');
+  // Use a fresh confirmed blockhash and retain its RPC context and expiry.
+  const { value: latest, context } = await connection.getLatestBlockhashAndContext('confirmed');
   // Use a fixed compute limit, and bound any wallet-added price instruction below.
   const transaction = new Transaction({ feePayer: wallet.publicKey, recentBlockhash: latest.blockhash })
     .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }), instruction);
@@ -167,16 +168,37 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
     if (!Transaction.from(wire).verifySignatures()) throw new Error('invalid signature');
   } catch { throw new Error('The wallet did not provide a valid transaction signature.'); }
   const signature = base58(wire.subarray(1, 65));
+  let height: number;
+  try { height = await connection.getBlockHeight({commitment:'confirmed', minContextSlot:context.slot}); }
+  catch {
+    const detail = 'Could not check the blockhash lifetime. The app did not submit this transaction; retry requires a new wallet approval.';
+    update({status:'failed', signature, detail}); throw new Error(detail);
+  }
+  if (height > latest.lastValidBlockHeight) {
+    const detail = 'The blockhash expired while awaiting approval. The app did not submit this transaction; create a new transaction and approve it in your wallet.';
+    update({status:'expired', signature, detail}); throw new Error(detail);
+  }
   update({ status: 'submitting', signature, detail: 'Signed. Sending to Devnet…' });
   try {
-    const returned = await connection.sendRawTransaction(wire);
+    const returned = await connection.sendRawTransaction(wire, {
+      skipPreflight:false, preflightCommitment:'confirmed', minContextSlot:context.slot, maxRetries:3,
+    });
     if (returned !== signature) throw new Error('The RPC returned an unexpected transaction signature.');
   } catch (error) {
-    update({ status: 'unknown', signature, detail: `Submission could not be confirmed: ${friendlyError(error)} Check the signature before trying again.` });
-    throw error;
+    if (error instanceof SendTransactionError && /blockhash(?: not found|notfound)/i.test(error.transactionError.message)) {
+      const detail = 'The Devnet RPC could not find the blockhash during preflight. This submission was rejected; the hash may have expired or the RPC may be behind. Check the signature before explicitly retrying with wallet approval.';
+      update({status:'failed', signature, detail}); throw new Error(detail);
+    }
+    if (error instanceof SendTransactionError && /transaction simulation failed/i.test(error.transactionError.message)) {
+      const detail = `Devnet preflight rejected the transaction: ${friendlyError(error.transactionError.message)}`;
+      update({status:'failed', signature, detail}); throw new Error(detail);
+    }
+    const detail = `Submission outcome is unknown: ${friendlyError(error)} Check the signature before trying again.`;
+    update({ status: 'unknown', signature, detail }); throw new Error(detail);
   }
   update({ status: 'pending', signature, detail: 'Submitted. Waiting for Devnet confirmation…' });
   const deadline = Date.now() + 60000;
+  let nextHeightCheck = 0;
   while (Date.now() < deadline) {
     try {
       const response = await connection.getSignatureStatuses([signature], {searchTransactionHistory:true});
@@ -188,8 +210,16 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
       if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
         update({status:'confirmed', signature, detail:'Confirmed on Devnet.'}); return signature;
       }
+      if (Date.now() >= nextHeightCheck) {
+        height = await connection.getBlockHeight({commitment:'confirmed', minContextSlot:context.slot});
+        nextHeightCheck = Date.now() + 10000;
+        if (height > latest.lastValidBlockHeight) {
+          const detail = 'The blockhash validity window ended before confirmation was observed. The transaction may have landed earlier; check the signature and escrow before trying again.';
+          update({status:'unknown', signature, detail}); throw new Error(detail);
+        }
+      }
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Transaction failed:')) throw error;
+      if (error instanceof Error && (error.message.startsWith('Transaction failed:') || error.message.startsWith('The blockhash validity window ended'))) throw error;
       if (!/429|too many requests/i.test(String(error))) {
         update({status:'unknown', signature, detail:'Confirmation is unavailable. Check the signature before trying again.'}); throw error;
       }

@@ -30,12 +30,13 @@ test('create and action instructions match the IDL account order, flags and disc
 });
 
 test('client retains signed signature and distinguishes confirmed, failed and unknown outcomes', async () => {
-  const original = Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction','getSignatureStatuses'].map(k => [k, connection[k]]));
+  const original = Object.fromEntries(['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction','getSignatureStatuses'].map(k => [k, connection[k]]));
   const restore = () => { for (const [name, value] of Object.entries(original)) connection[name] = value; };
   const updates = [];
   try {
     connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
-    connection.getLatestBlockhash = async () => ({blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight:100});
+    connection.getLatestBlockhashAndContext = async () => ({context:{slot:55},value:{blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight:100}});
+    connection.getBlockHeight = async () => 90;
     connection.sendRawTransaction = async () => updates.at(-1).signature;
     connection.getSignatureStatuses = async () => ({value:[{confirmationStatus:'confirmed',err:null}]});
     const wallet = {publicKey:buyer.publicKey, signTransaction:async tx => {tx.partialSign(buyer);return tx;}};
@@ -71,11 +72,12 @@ test('a simulated wallet-added fee instruction changes the signed message', asyn
   assert(walletCopy.verifySignatures());
   assert(!Buffer.from(walletCopy.serializeMessage()).equals(original));
 
-  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction','getSignatureStatuses'].map(k => [k, connection[k]]));
+  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction','getSignatureStatuses'].map(k => [k, connection[k]]));
   const updates = [];
   try {
     connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
-    connection.getLatestBlockhash = async () => ({blockhash,lastValidBlockHeight:100});
+    connection.getLatestBlockhashAndContext = async () => ({context:{slot:55},value:{blockhash,lastValidBlockHeight:100}});
+    connection.getBlockHeight = async () => 90;
     connection.sendRawTransaction = async () => updates.at(-1).signature;
     connection.getSignatureStatuses = async () => ({value:[{confirmationStatus:'confirmed',err:null}]});
     const wallet = {publicKey:buyer.publicKey, signTransaction:async tx => {
@@ -92,11 +94,12 @@ test('a simulated wallet-added fee instruction changes the signed message', asyn
 });
 
 test('rejects changed payer, blockhash, account, amount, program, flags or invalid signature', async () => {
-  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction'].map(k => [k, connection[k]]));
+  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction'].map(k => [k, connection[k]]));
   let broadcasts = 0;
   try {
     connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
-    connection.getLatestBlockhash = async () => ({blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100});
+    connection.getLatestBlockhashAndContext = async () => ({context:{slot:55},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
+    connection.getBlockHeight = async () => 90;
     connection.sendRawTransaction = async () => { broadcasts++; return ''; };
     const mutations = [
       tx => {tx.feePayer = seller.publicKey;},
@@ -119,11 +122,12 @@ test('rejects changed payer, blockhash, account, amount, program, flags or inval
 
 test('allows only a bounded Phantom-style compute-unit price insertion', async () => {
   const {ComputeBudgetProgram, Transaction} = await import('@solana/web3.js');
-  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction','getSignatureStatuses'].map(k => [k, connection[k]]));
+  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction','getSignatureStatuses'].map(k => [k, connection[k]]));
   let broadcasts = 0, updates = [];
   try {
     connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
-    connection.getLatestBlockhash = async () => ({blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100});
+    connection.getLatestBlockhashAndContext = async () => ({context:{slot:55},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
+    connection.getBlockHeight = async () => 90;
     connection.sendRawTransaction = async () => { broadcasts++; return updates.at(-1).signature; };
     connection.getSignatureStatuses = async () => ({value:[{confirmationStatus:'confirmed',err:null}]});
     const {instruction} = await createInstruction(buyer.publicKey,seller.publicKey,arbitrator.publicKey,42n,1000000n);
@@ -147,11 +151,12 @@ test('allows only a bounded Phantom-style compute-unit price insertion', async (
 
 test('rejects unsafe or disguised compute budget additions without broadcasting', async () => {
   const {ComputeBudgetProgram} = await import('@solana/web3.js');
-  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction'].map(k => [k, connection[k]]));
+  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction'].map(k => [k, connection[k]]));
   let broadcasts = 0;
   try {
     connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
-    connection.getLatestBlockhash = async () => ({blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100});
+    connection.getLatestBlockhashAndContext = async () => ({context:{slot:55},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
+    connection.getBlockHeight = async () => 90;
     connection.sendRawTransaction = async () => { broadcasts++; return ''; };
     const addPrice = tx => tx.instructions.splice(1,0,ComputeBudgetProgram.setComputeUnitPrice({microLamports:1}));
     const mutations = [
@@ -183,11 +188,12 @@ test('rejects unsafe or disguised compute budget additions without broadcasting'
 
 test('checks the actual serialized wire transaction before broadcast', async () => {
   const {Transaction} = await import('@solana/web3.js');
-  const originals=Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction'].map(k => [k,connection[k]]));
+  const originals=Object.fromEntries(['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction'].map(k => [k,connection[k]]));
   let broadcasts=0;
   try {
     connection.getGenesisHash=async()=> 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
-    connection.getLatestBlockhash=async()=>({blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100});
+    connection.getLatestBlockhashAndContext=async()=>({context:{slot:55},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
+    connection.getBlockHeight=async()=>90;
     connection.sendRawTransaction=async()=>{broadcasts++;return '';};
     const instruction=SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
     const wallet={publicKey:buyer.publicKey,signTransaction:async tx=>{
@@ -201,4 +207,87 @@ test('checks the actual serialized wire transaction before broadcast', async () 
     await assert.rejects(send(wallet,instruction,()=>{}),/wallet changed/);
     assert.equal(broadcasts,0);
   } finally { for (const [key,value] of Object.entries(originals)) connection[key] = value; }
+});
+
+test('uses a fresh confirmed blockhash and matching context for preflight', async () => {
+  const names = ['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction','getSignatureStatuses'];
+  const original = Object.fromEntries(names.map(k => [k, connection[k]]));
+  let updates=[], acquisitions=0, signatures=0, broadcasts=0;
+  const blockhash=Keypair.generate().publicKey.toBase58();
+  try {
+    connection.getGenesisHash=async()=> 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhashAndContext=async commitment=>{acquisitions++;assert.equal(commitment,'confirmed');return {context:{slot:1234},value:{blockhash,lastValidBlockHeight:100}};};
+    connection.getBlockHeight=async config=>{assert.deepEqual(config,{commitment:'confirmed',minContextSlot:1234});return 100;};
+    connection.sendRawTransaction=async (wire,options)=>{broadcasts++;assert.deepEqual(options,{skipPreflight:false,preflightCommitment:'confirmed',minContextSlot:1234,maxRetries:3});assert.equal((await import('@solana/web3.js')).Transaction.from(wire).recentBlockhash,blockhash);return updates.at(-1).signature;};
+    connection.getSignatureStatuses=async()=>({value:[{confirmationStatus:'confirmed',err:null}]});
+    const wallet={publicKey:buyer.publicKey,signTransaction:async tx=>{signatures++;tx.partialSign(buyer);return tx;}};
+    const instruction=SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+    await send(wallet,instruction,u=>updates.push(u));
+    assert.equal(acquisitions,1);assert.equal(signatures,1);assert.equal(broadcasts,1);assert.equal(updates.at(-1).status,'confirmed');
+  } finally {for(const [key,value] of Object.entries(original)) connection[key]=value;}
+});
+
+test('expired blockhash after wallet approval is not submitted or automatically re-signed', async () => {
+  const names=['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction'];
+  const original=Object.fromEntries(names.map(k=>[k,connection[k]])); let broadcasts=0, approvals=0; const updates=[];
+  try {
+    connection.getGenesisHash=async()=> 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhashAndContext=async()=>({context:{slot:1},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
+    connection.getBlockHeight=async()=>101;
+    connection.sendRawTransaction=async()=>{broadcasts++;return '';};
+    const wallet={publicKey:buyer.publicKey,signTransaction:async tx=>{approvals++;tx.partialSign(buyer);return tx;}};
+    const instruction=SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+    await assert.rejects(send(wallet,instruction,u=>updates.push(u)),/expired while awaiting approval/);
+    assert.equal(updates.at(-1).status,'expired');assert(updates.at(-1).signature);assert.equal(broadcasts,0);assert.equal(approvals,1);
+  } finally {for(const [key,value] of Object.entries(original))connection[key]=value;}
+});
+
+test('blockhash preflight rejection is failed, while network uncertainty remains unknown', async () => {
+  const {SendTransactionError}=await import('@solana/web3.js');
+  const names=['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction'];
+  const original=Object.fromEntries(names.map(k=>[k,connection[k]]));let updates=[],sends=0,approvals=0;
+  try {
+    connection.getGenesisHash=async()=> 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhashAndContext=async()=>({context:{slot:1},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
+    connection.getBlockHeight=async()=>90;
+    const wallet={publicKey:buyer.publicKey,signTransaction:async tx=>{approvals++;tx.partialSign(buyer);return tx;}};
+    const instruction=SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+    connection.sendRawTransaction=async()=>{sends++;throw new SendTransactionError({action:'simulate',signature:'',transactionMessage:'Transaction simulation failed: Blockhash not found'});};
+    await assert.rejects(send(wallet,instruction,u=>updates.push(u)),/could not find the blockhash during preflight/);
+    assert.equal(updates.at(-1).status,'failed');assert(updates.at(-1).signature);assert.equal(sends,1);assert.equal(approvals,1);
+    updates=[];connection.sendRawTransaction=async()=>{sends++;throw new Error('fetch failed');};
+    await assert.rejects(send(wallet,instruction,u=>updates.push(u)),/Submission outcome is unknown/);
+    assert.equal(updates.at(-1).status,'unknown');assert(updates.at(-1).signature);assert.equal(sends,2);assert.equal(approvals,2);
+  } finally {for(const [key,value] of Object.entries(original))connection[key]=value;}
+});
+
+test('expiry after submission keeps the landing outcome unknown and preserves its signature', async () => {
+  const names=['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction','getSignatureStatuses'];
+  const original=Object.fromEntries(names.map(k=>[k,connection[k]]));let updates=[],heights=0,sends=0;
+  try {
+    connection.getGenesisHash=async()=> 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhashAndContext=async()=>({context:{slot:1},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
+    connection.getBlockHeight=async()=>++heights===1?90:101;
+    connection.sendRawTransaction=async()=>{sends++;return updates.at(-1).signature;};
+    connection.getSignatureStatuses=async()=>({value:[null]});
+    const wallet={publicKey:buyer.publicKey,signTransaction:async tx=>{tx.partialSign(buyer);return tx;}};
+    const instruction=SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+    await assert.rejects(send(wallet,instruction,u=>updates.push(u)),/validity window ended/);
+    assert.equal(updates.at(-1).status,'unknown');assert(updates.at(-1).signature);assert.equal(sends,1);
+  } finally {for(const [key,value] of Object.entries(original))connection[key]=value;}
+});
+
+test('failure to check block height stops before submission', async () => {
+  const names=['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction'];
+  const original=Object.fromEntries(names.map(k=>[k,connection[k]]));let updates=[],sends=0;
+  try {
+    connection.getGenesisHash=async()=> 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhashAndContext=async()=>({context:{slot:1},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
+    connection.getBlockHeight=async()=>{throw new Error('RPC unavailable');};
+    connection.sendRawTransaction=async()=>{sends++;return '';};
+    const wallet={publicKey:buyer.publicKey,signTransaction:async tx=>{tx.partialSign(buyer);return tx;}};
+    const instruction=SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+    await assert.rejects(send(wallet,instruction,u=>updates.push(u)),/did not submit/);
+    assert.equal(updates.at(-1).status,'failed');assert.equal(sends,0);
+  } finally {for(const [key,value] of Object.entries(original))connection[key]=value;}
 });
