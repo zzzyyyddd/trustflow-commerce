@@ -64,7 +64,7 @@ npm ci
 npm run dev              # http://localhost:3000
 ```
 
-The frontend defaults to the deployed Devnet program. An optional `NEXT_PUBLIC_ESCROW_PROGRAM_ID` is a **public** build-time override; see [`.env.example`](.env.example). Never place private keys or seed phrases in the repository or browser environment variables.
+The frontend defaults to the deployed Devnet program. An optional `NEXT_PUBLIC_ESCROW_PROGRAM_ID` is a **public** build-time override. Never place private keys or seed phrases in the repository or browser environment variables.
 
 ```bash
 npm run test:checks      # non-transaction RPC/IDL checks (local stubs)
