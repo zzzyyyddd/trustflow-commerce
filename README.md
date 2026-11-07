@@ -1,81 +1,100 @@
-# TrustFlow Commerce — Devnet escrow
+# TrustFlow Commerce
 
-A single-milestone SOL escrow. Buyer creates and funds; seller submits a SHA-256 evidence hash; buyer approves; anyone can release to the recorded seller. Before approval either party can dispute, after which only the recorded arbitrator may refund the recorded buyer. There is no timeout refund and no AI authority. Experimental and not audited.
+**Evidence-backed milestone escrow for digital commerce on Solana Devnet.**
 
-## Verified deployment
+TrustFlow gives a buyer, seller, and named arbitrator a shared settlement record. A buyer funds a SOL milestone, the seller submits an evidence hash, and the buyer approves release to the recorded seller. Before approval, either party can dispute; the arbitrator can then refund the buyer.
 
-Program: [8DK8Z1Uz8Nv3KTvVE7kxrm79mijQEL2nC5CAacPHgJ4Z on Devnet](https://explorer.solana.com/address/8DK8Z1Uz8Nv3KTvVE7kxrm79mijQEL2nC5CAacPHgJ4Z?cluster=devnet). The program account is executable. The [deployment transaction](https://explorer.solana.com/tx/4VtsgZ7cvJeReCQ1Fshs6KW1z7Qxgut3s2LLBnvgmaaWAB16wE4aotWC6yasBXKy44rvZkrkcjyhmi3edFpF9dXt?cluster=devnet) is finalized with no error; its logs identify this program. The deployed program bytes match the local compiled `.so`. The transactions below were checked against Devnet signature statuses.
+**[Live app](https://trustflow-commerce-six.vercel.app)** · **[Judge guide](docs/JUDGE_GUIDE.md)** · **[Devnet evidence](docs/DEVNET_EVIDENCE.md)** · **[Security](docs/SECURITY.md)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Testing](docs/TESTING.md)**
 
-## Verified Devnet lifecycle
+> **Scope:** Devnet SOL only. This is an experimental, unaudited hackathon project. The program is upgradeable and an upgrade authority was present when checked on 7 November 2026. An evidence hash does not prove delivery or quality. [Trust assumptions and limitations →](docs/SECURITY.md)
 
-The original [run evidence](evidence/devnet-lifecycle-1794018466146.json) is preserved. The [RPC verification](evidence/devnet-lifecycle-1794018466146-rpc-verification.json) confirms all signatures finalized, including the previously pending double refund. Rejections are expected program errors; this verifies the transactions, not a browser walkthrough.
+## Judge quick start
 
-| Step | Finalized result | Devnet Explorer |
-| --- | --- | --- |
-| initialize seller | Succeeded | [3nDv8GZAzUFj…](https://explorer.solana.com/tx/3nDv8GZAzUFjpFfwudRC7aCVhm3hJzUQSpYSm4uezAGZhALLGeE7dWQCKeETYWbiaCtPUDg2Y7FpmN1WDcN6Ktyt?cluster=devnet) |
-| initialize arbitrator | Succeeded | [2ahaAq7wpfjg…](https://explorer.solana.com/tx/2ahaAq7wpfjgEZNkPRENzQEARxmMiiMQbSzGVdAYe42WWzPRNECALaPveTpA76gHCZt1SC3LTXA996v6LxrQ8y8e?cluster=devnet) |
-| initialize stranger | Succeeded | [4MMsW2AsZthu…](https://explorer.solana.com/tx/4MMsW2AsZthuRwsoZqS6VmtMLi6b55GRUjCWUM8QaJg2znymn8JKUXxhqux4hbUQjDPKBMpc1DqY63DcV9J8TUAS?cluster=devnet) |
-| release flow create | Succeeded | [2CimghxLtJit…](https://explorer.solana.com/tx/2CimghxLtJitwtXKB2dMNPS8hKkTSjRr7mSopDc9sd3Ny1ZwxfWtQh5LxftSHdMmBfHHe1HrA5QKV5UchJNchT7r?cluster=devnet) |
-| fund | Succeeded | [4j9daABaCriL…](https://explorer.solana.com/tx/4j9daABaCriL9pbiSLor1kqakg2NhYxgWTC4a7fgM2163Syk9E9t42fy5HHZSeuSh1UmpyF7zvFHcvnVtMFoTeot?cluster=devnet) |
-| unauthorized approval | Rejected, custom 2001 | [dK2b888xVx9w…](https://explorer.solana.com/tx/dK2b888xVx9wd9awMHSnQVqDW6aGv1dfFbjAzzYapeKcwiqTRFAXufy7i3ce4VanxsAdrQDeaqQKpqMj2Sx7w6H?cluster=devnet) |
-| submit evidence | Succeeded | [A7sx9TNrQhni…](https://explorer.solana.com/tx/A7sx9TNrQhniJSjM6nPGzBEqNPjXuRn79ddhWQHjE6qQpykxnqmAQXqZ7RbLgPYteFHeUra5PsCEPX97eXQs4s6?cluster=devnet) |
-| approve | Succeeded | [4PSfWaiGhbHS…](https://explorer.solana.com/tx/4PSfWaiGhbHSy9XCgEMqvfE9xc7r8HS4W1ncoZXSXr4hoWy1BzLzmnCdDnsXTPNqUMrGY2DAQney3HnEnhymbGdt?cluster=devnet) |
-| invalid recipient | Rejected, custom 2001 | [2rL1MLMDm3x8…](https://explorer.solana.com/tx/2rL1MLMDm3x8xn82kernsUe2JydRtFHX6C7rFSUHLEbAMDFPGDqPUf94V6p3wQVpB8Un4XxnhU6rrsYpVZaL2L7D?cluster=devnet) |
-| release | Succeeded | [2v5PD3eYrU8i…](https://explorer.solana.com/tx/2v5PD3eYrU8i2sEinL7CYSsu26w38mrYuWQXdHuJqHCYHG5g62NudxYD362G3R6u7LCmZKAk1T6ATJ8Nb9NPqzvA?cluster=devnet) |
-| double release | Rejected, custom 6003 | [3S5RXm5AueVp…](https://explorer.solana.com/tx/3S5RXm5AueVpy6vmJxaLLqdY5T71Cib1pUbiCMpPHd3Ym9QjmvCNAAPBUBUvQvzcUnF6gNpMyiiuThzfAPEygTRz?cluster=devnet) |
-| refund flow create | Succeeded | [5YY1EdPohf9t…](https://explorer.solana.com/tx/5YY1EdPohf9tpjfXCZuJzmopFVjYBgh9nq1RoAte48Bqy9wRzyJnNTtBiQBPnGxG5Vw7MRsFExFFHXNDq6RSCcep?cluster=devnet) |
-| fund refund flow | Succeeded | [3DXwfBCDRtG2…](https://explorer.solana.com/tx/3DXwfBCDRtG2ECg6e9nFN9n4MkDiL9h4T4VQ4u873FodNbTyFCEjga2auUC2SWN6nXma1pyhbLeiuXXM3YqXnTbA?cluster=devnet) |
-| dispute | Succeeded | [5nbqcm73Wb8S…](https://explorer.solana.com/tx/5nbqcm73Wb8SxB8vFQDcGaWgy3TT3rYUx8yhVPWyihK9qkwpAg27K2CTa1Py9g5xgh7DymQzsA489Q3sAKT7Ygmb?cluster=devnet) |
-| unauthorized refund | Rejected, custom 2001 | [6552Qh3x5VdW…](https://explorer.solana.com/tx/6552Qh3x5VdWcgEmZB5TSSJ9HgDLuXkQ9E2Ua3Jx8DoCrorgR9Z1QZ5HTkD8J3ft4QiMe7kMVTFDSiKr6ys8D347?cluster=devnet) |
-| refund | Succeeded | [hDXjVABnJwfd…](https://explorer.solana.com/tx/hDXjVABnJwfdN8RWJekQU3BPJZw8jteVP3MFsCfF62iNLToPnn9eRZFvLFQtSfAig7QZ1zAFVkaw3qMKn1MDpJn?cluster=devnet) |
-| double refund | Rejected, custom 6003 | [4BXz74N66WqR…](https://explorer.solana.com/tx/4BXz74N66WqRxn5wPiLhQpjELk55tJzaqpEMP5Nnmzu56Li13h5Qqbpk48SvzPRDQybS7AV7o6256AKh93ZyVdxT?cluster=devnet) |
+No wallet or transaction is needed to inspect the historical evidence:
 
-## Run the app
+1. Open the [live app](https://trustflow-commerce-six.vercel.app/#proof) and scroll through **Happy Path**, **Dispute Path**, and **Security checks**.
+2. Inspect the finalized [release](https://explorer.solana.com/tx/2v5PD3eYrU8i2sEinL7CYSsu26w38mrYuWQXdHuJqHCYHG5g62NudxYD362G3R6u7LCmZKAk1T6ATJ8Nb9NPqzvA?cluster=devnet) and [refund](https://explorer.solana.com/tx/hDXjVABnJwfdN8RWJekQU3BPJZw8jteVP3MFsCfF62iNLToPnn9eRZFvLFQtSfAig7QZ1zAFVkaw3qMKn1MDpJn?cluster=devnet) transactions from separate escrows.
+3. Review the [full evidence table](docs/DEVNET_EVIDENCE.md), including intentionally rejected transactions, or follow the [two-minute judge route](docs/JUDGE_GUIDE.md).
 
-```bash
-cd ~/trustflow-commerce/trustflow-devnet
-npm install
-npm run dev
+The historical lifecycle was generated by a script, not verified as a complete browser/Phantom walkthrough. An optional live test requires three distinct funded Devnet wallet accounts and explicit wallet approvals.
+
+## What it does
+
+- **One milestone per escrow:** record buyer, seller, arbitrator, amount, and a unique ID in a program-derived account.
+- **Evidence hash:** the seller submits a nonzero 32-byte value; the browser hashes the selected file with SHA-256 and keeps the file local.
+- **Buyer-approved release:** after evidence submission, the buyer approves. Anyone can trigger release, but the program pays only the recorded seller.
+- **Dispute and refund:** before approval, buyer or seller may dispute. Only the recorded arbitrator can refund the recorded buyer.
+- **Transparent history:** the UI links to historical finalized Devnet transactions and clearly labels expected rejections.
+
+## Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created
+    Created --> Funded: buyer funds
+    Funded --> EvidenceSubmitted: seller submits hash
+    EvidenceSubmitted --> Approved: buyer approves
+    Approved --> Released: anyone triggers; seller receives SOL
+    Funded --> Disputed: buyer or seller
+    EvidenceSubmitted --> Disputed: buyer or seller
+    Disputed --> Refunded: arbitrator refunds buyer
 ```
 
-Open `http://localhost:3000/`. The client defaults to the deployed ID, uses the public Devnet RPC and checks the Devnet genesis hash before signing and sending. Connect Phantom and use three distinct existing Devnet system-account wallets for buyer, seller, and arbitrator. Create and fund an escrow with the buyer; load its address as seller and submit a file hash; load it as buyer and approve; then release. Each transaction requests a wallet signature. Explorer links appear after confirmation. The browser hashes the file locally; exchange and retain the file separately. The hash does not prove quality or ownership. Alternative flow: either party disputes after funding, then the arbitrator refunds. An unavailable arbitrator can leave a disputed escrow stuck. Rent and unsolicited extra lamports remain in the account after settlement.
+Release and refund are terminal. There is **no timeout refund**, no cancellation of a created account, and no seller-payout resolution after a dispute. An unavailable arbitrator can leave a dispute unresolved. Account rent and unsolicited extra lamports remain in the escrow account after settlement.
 
-Before each wallet approval, the client requests a fresh confirmed Devnet blockhash. It checks block height after signing and uses matching confirmed preflight and the blockhash RPC context slot. If approval takes too long, the client stops before submission and asks for a new wallet approval. After a submission with an uncertain result or expired validity window, check the displayed signature and escrow on Explorer before retrying; the client never automatically creates a new signature.
+## Architecture and stack
 
-The client specifies a zero compute-unit price before wallet signing, so only the base transaction fee applies. Any wallet change to that price or duplicate price instruction is rejected. All original transaction instructions, account privileges, payer, and blockhash must remain unchanged.
+The [Anchor program](programs/trustflow_escrow/src/lib.rs) holds lamports in an escrow PDA and enforces role, state, and recipient constraints. The [Next.js frontend](app/page.tsx) reads Devnet accounts, builds instructions, and asks Phantom to sign. SHA-256 runs in the browser; the program stores only the supplied 32-byte hash. The static frontend is hosted on Vercel and uses the public Solana Devnet RPC.
 
-The UI is connected to the configured program rather than a mock; its browser lifecycle has not been verified yet. Historical examples are explicitly labelled and do not initiate transactions. There is no AI service. Never share wallet secrets, use mainnet, or use real funds.
+| Layer | Implementation |
+| --- | --- |
+| Program | Rust, Anchor; workspace lockfile resolves `anchor-lang` 0.31.3 |
+| Client | Next.js, React, TypeScript, `@solana/web3.js`, Phantom provider |
+| Network | Solana Devnet; native Devnet SOL |
+| Hosting | Vercel static export; no application server or server-side wallet |
 
-## Judge walkthrough and hosting
+See [architecture](docs/ARCHITECTURE.md) for account derivation and transaction details.
 
-The app is a static Next.js export. `vercel.json` directs Vercel to build it and serve `out/`; no server, VPS, server-side wallet, or running laptop is needed after deployment. `.vercelignore` excludes `target/`, which may contain a program keypair. The public Devnet RPC is shared and may rate-limit requests. The configured public program ID is embedded at build time; use the existing default or set `NEXT_PUBLIC_ESCROW_PROGRAM_ID` to the same deployed ID.
+## Run locally
 
-1. Open the public deployment and enable Devnet in Phantom. Create three distinct funded Devnet accounts or coordinate with two other people. Public wallet addresses are safe to share; never share seed phrases.
-2. Connect the buyer, enter the seller and arbitrator addresses, create the escrow and fund it. Save or share the escrow link.
-3. Switch to the seller in Phantom, load the escrow, select an evidence file, and submit its hash. Switch to the buyer to approve. A connected wallet can then release to the recorded seller.
-4. To try the dispute path, create and fund a separate escrow. The buyer or seller disputes; switch to the named arbitrator to refund the buyer. The contract has no timeout refund or seller-favoring dispute resolution, so an uncooperative arbitrator can leave a dispute unresolved.
-5. For each transaction, approve the wallet prompt and wait for confirmation. If status is unknown, use **Check status** or Explorer before retrying. The site records the signature in the current page; save Explorer links externally if needed.
-
-The historical links demonstrate finalized chain transactions from a prior script run, not the current browser session. A real browser walkthrough with Phantom remains a submission check and must not be claimed complete until each role signs and its Explorer transaction confirms.
-
-## Test and generate IDL in normal WSL
-
-Run these commands where networking and the Cargo cache are available. A new lifecycle run sends new Devnet transactions; the existing evidence does not require a rerun. The IDL command uses the installed Anchor binary directly and the installed stable toolchain, avoiding AVM installation or Solana version switching:
+Prerequisites: Node.js 22 and npm. Client checks additionally require the generated Anchor IDL described in [Testing](docs/TESTING.md).
 
 ```bash
-cd ~/trustflow-commerce/trustflow-devnet
-mkdir -p target/idl
-RUSTUP_TOOLCHAIN=stable ~/.avm/bin/anchor-0.31.1 idl build -o target/idl/trustflow_escrow.json
+npm ci
+npm run dev              # http://localhost:3000
+```
+
+The frontend defaults to the deployed Devnet program. An optional `NEXT_PUBLIC_ESCROW_PROGRAM_ID` is a **public** build-time override; see [`.env.example`](.env.example). Never place private keys or seed phrases in the repository or browser environment variables.
+
+```bash
+npm run test:checks      # non-transaction RPC/IDL checks (local stubs)
+npm run test:client      # client and wallet-session checks (local stubs)
+./node_modules/.bin/tsc --noEmit --incremental false
 npm run build
-npm run test:client
-npm run test:checks
-node scripts/devnet-lifecycle.mjs
 ```
 
-The Devnet test reads `~/.config/solana/id.json` (or `TRUSTFLOW_WALLET`) without printing its contents. It uses the wallet as buyer and fee payer, creates three ephemeral test parties, and transfers 0.001 Devnet SOL to each. Two escrows use 0.0001 Devnet SOL each; account rent and transaction fees are additional. Generated party keys exist only in memory. The test checks the genesis hash before sending; records each signature before broadcast in a timestamped `evidence/devnet-lifecycle-*.json`; checks state and escrow balances; and verifies the exact error codes for unauthorized approval/refund, incorrect recipient and repeated settlement after first simulating the expected program error. It polls transaction status over HTTP with bounded 429 retries. Inspect the report and Explorer links before claiming a successful flow. A partial report is not a passing test.
+On 7 November 2026, 30 JavaScript checks, 7 Rust unit tests, TypeScript, and the production build passed locally. These checks are not a professional audit or a real-browser test. Validator and Devnet scripts create transactions and are documented separately in [Testing](docs/TESTING.md).
 
-Local-validator tests are separate: follow `tests/escrow.integration.test.mjs` setup and use only `http://127.0.0.1:8899`. Rule-only Rust tests can run with `rustc --edition=2021 --test programs/trustflow_escrow/src/rules.rs -o /tmp/trustflow-rules-test && /tmp/trustflow-rules-test`.
+## Deployment and verified evidence
 
-## Remaining submission tasks
+- **Program:** [8DK8Z1Uz8Nv3KTvVE7kxrm79mijQEL2nC5CAacPHgJ4Z](https://explorer.solana.com/address/8DK8Z1Uz8Nv3KTvVE7kxrm79mijQEL2nC5CAacPHgJ4Z?cluster=devnet)
+- **Deployment:** [finalized Devnet transaction](https://explorer.solana.com/tx/4VtsgZ7cvJeReCQ1Fshs6KW1z7Qxgut3s2LLBnvgmaaWAB16wE4aotWC6yasBXKy44rvZkrkcjyhmi3edFpF9dXt?cluster=devnet)
+- **Historical run:** 17 transaction signatures were rechecked as finalized with their expected outcomes on 7 November 2026; five are **expected failures**, not successful operations. [Evidence and provenance →](docs/DEVNET_EVIDENCE.md)
+- **Frontend:** [public Vercel deployment](https://trustflow-commerce-six.vercel.app), built as a static export using [`vercel.json`](vercel.json).
 
-Demonstrate the browser flow with wallet prompts, capture a demo video, and publish the configured frontend on a free-tier host. The historical run stopped during confirmation of the final expected rejection; its final signature was subsequently verified by RPC, but the original run never recorded a PASS. Independently review the program and dispute model; do not describe this MVP as audited.
+## Screenshots and demo video
+
+No suitable project screenshots are currently stored in this repository. Use the [capture checklist](docs/screenshots/README.md) to add genuine, redacted screenshots from the app and Explorer.
+
+**Demo video:** not yet published. Record a short walkthrough after verifying the real Phantom flow; do not substitute historical script results for a browser demonstration.
+
+## Repository map
+
+| Path | Purpose |
+| --- | --- |
+| `programs/trustflow_escrow/` | Anchor program and transition rules |
+| `app/`, `lib/` | Frontend, transaction client, and wallet-session handling |
+| `tests/` | Local logic, client, wallet-session, and validator integration tests |
+| `scripts/` | Devnet lifecycle and RPC helpers |
+| `evidence/` | Original historical run and read-only RPC verification snapshot |
+| `docs/` | Judge route, security model, architecture, testing, and evidence |
