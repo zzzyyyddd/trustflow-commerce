@@ -116,3 +116,89 @@ test('rejects changed payer, blockhash, account, amount, program, flags or inval
     assert.equal(broadcasts,0);
   } finally { for (const [key,value] of Object.entries(originals)) connection[key] = value; }
 });
+
+test('allows only a bounded Phantom-style compute-unit price insertion', async () => {
+  const {ComputeBudgetProgram, Transaction} = await import('@solana/web3.js');
+  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction','getSignatureStatuses'].map(k => [k, connection[k]]));
+  let broadcasts = 0, updates = [];
+  try {
+    connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhash = async () => ({blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100});
+    connection.sendRawTransaction = async () => { broadcasts++; return updates.at(-1).signature; };
+    connection.getSignatureStatuses = async () => ({value:[{confirmationStatus:'confirmed',err:null}]});
+    const {instruction} = await createInstruction(buyer.publicKey,seller.publicKey,arbitrator.publicKey,42n,1000000n);
+    for (const position of [0,1,2]) {
+      updates = [];
+      const wallet = {publicKey:buyer.publicKey, signTransaction:async tx => {
+        const before = Buffer.from(tx.serializeMessage());
+        const clone = Transaction.from(tx.serialize({requireAllSignatures:false,verifySignatures:false}));
+        clone.instructions.splice(position,0,ComputeBudgetProgram.setComputeUnitPrice({microLamports:50000}));
+        clone.partialSign(buyer);
+        assert.equal(clone.serializeMessage().length - before.length,12);
+        assert.equal(clone.compileMessage().accountKeys.length, tx.compileMessage().accountKeys.length);
+        return clone;
+      }};
+      await send(wallet,instruction,u=>updates.push(u));
+      assert.equal(updates.at(-1).status,'confirmed');
+    }
+    assert.equal(broadcasts,3);
+  } finally { for (const [key,value] of Object.entries(originals)) connection[key] = value; }
+});
+
+test('rejects unsafe or disguised compute budget additions without broadcasting', async () => {
+  const {ComputeBudgetProgram} = await import('@solana/web3.js');
+  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction'].map(k => [k, connection[k]]));
+  let broadcasts = 0;
+  try {
+    connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhash = async () => ({blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100});
+    connection.sendRawTransaction = async () => { broadcasts++; return ''; };
+    const addPrice = tx => tx.instructions.splice(1,0,ComputeBudgetProgram.setComputeUnitPrice({microLamports:1}));
+    const mutations = [
+      tx => tx.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:50001})),
+      tx => tx.add(new TransactionInstruction({programId:ComputeBudgetProgram.programId,keys:[],data:Buffer.from([3,1,0,0,0,0,0,0])})),
+      tx => tx.add(new TransactionInstruction({programId:ComputeBudgetProgram.programId,keys:[],data:Buffer.from([3,1,0,0,0,0,0,0,0,0])})),
+      tx => tx.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:18446744073709551615n})),
+      tx => {tx.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:1}));tx.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:1}));},
+      tx => tx.add(ComputeBudgetProgram.setComputeUnitLimit({units:1400000})),
+      tx => tx.add(ComputeBudgetProgram.requestHeapFrame({bytes:32768})),
+      tx => tx.add(new TransactionInstruction({programId:ComputeBudgetProgram.programId,keys:[],data:Buffer.from([4,1,0,0,0])})),
+      tx => {const x=ComputeBudgetProgram.setComputeUnitPrice({microLamports:1});x.keys.push({pubkey:buyer.publicKey,isSigner:true,isWritable:true});tx.add(x);},
+      tx => {const x=ComputeBudgetProgram.setComputeUnitPrice({microLamports:1});x.programId=SystemProgram.programId;tx.add(x);},
+      tx => {addPrice(tx);tx.instructions[2].keys[1].pubkey=arbitrator.publicKey;},
+      tx => {addPrice(tx);tx.instructions[2].data[4]^=1;},
+      tx => {addPrice(tx);tx.instructions[2].keys[1].isWritable=false;},
+      tx => {addPrice(tx);tx.feePayer=seller.publicKey;},
+      tx => {addPrice(tx);tx.recentBlockhash=Keypair.generate().publicKey.toBase58();},
+      tx => {addPrice(tx);tx.instructions.reverse();},
+      tx => {addPrice(tx);tx.instructions[0].data[1]^=1;},
+    ];
+    for (const mutate of mutations) {
+      const instruction=SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+      await assert.rejects(send({publicKey:buyer.publicKey,signTransaction:async tx => {mutate(tx);return tx;}},instruction,()=>{}),/wallet changed/);
+    }
+    assert.equal(broadcasts,0);
+  } finally { for (const [key,value] of Object.entries(originals)) connection[key] = value; }
+});
+
+test('checks the actual serialized wire transaction before broadcast', async () => {
+  const {Transaction} = await import('@solana/web3.js');
+  const originals=Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction'].map(k => [k,connection[k]]));
+  let broadcasts=0;
+  try {
+    connection.getGenesisHash=async()=> 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhash=async()=>({blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100});
+    connection.sendRawTransaction=async()=>{broadcasts++;return '';};
+    const instruction=SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+    const wallet={publicKey:buyer.publicKey,signTransaction:async tx=>{
+      tx.partialSign(buyer);
+      const forged=Transaction.from(tx.serialize());
+      forged.instructions[1].keys[1].pubkey=arbitrator.publicKey;
+      forged.partialSign(buyer);
+      tx.serialize=()=>forged.serialize();
+      return tx;
+    }};
+    await assert.rejects(send(wallet,instruction,()=>{}),/wallet changed/);
+    assert.equal(broadcasts,0);
+  } finally { for (const [key,value] of Object.entries(originals)) connection[key] = value; }
+});

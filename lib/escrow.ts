@@ -1,5 +1,5 @@
 import { Buffer } from 'buffer';
-import { ComputeBudgetProgram, Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
+import { ComputeBudgetProgram, Connection, Message, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 
 export const connection = new Connection('https://api.devnet.solana.com', {commitment: 'confirmed', disableRetryOnRateLimit: true});
 const GENESIS = 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
@@ -65,6 +65,60 @@ function base58(bytes: Uint8Array): string {
   for (const byte of bytes) { if (byte !== 0) break; result = '1' + result; }
   return result;
 }
+// Limit any wallet-added prioritization fee to 10,000 lamports for 200,000 CUs.
+const MAX_COMPUTE_UNIT_PRICE = 50_000n;
+function decodeBase58(value: string): Buffer | null {
+  const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  if (!value || value.length > 13) return null;
+  let decoded = 0n;
+  for (const char of value) {
+    const digit = alphabet.indexOf(char);
+    if (digit < 0) return null;
+    decoded = decoded * 58n + BigInt(digit);
+  }
+  let hex = decoded.toString(16);
+  if (hex.length % 2) hex = `0${hex}`;
+  const body = decoded === 0n ? Buffer.alloc(0) : Buffer.from(hex, 'hex');
+  const leadingZeroes = value.match(/^1*/)?.[0].length ?? 0;
+  const bytes = Buffer.concat([Buffer.alloc(leadingZeroes), body]);
+  return base58(bytes) === value ? bytes : null;
+}
+function sameInstruction(a: Message['instructions'][number], b: Message['instructions'][number]): boolean {
+  return a.programIdIndex === b.programIdIndex && a.data === b.data &&
+    a.accounts.length === b.accounts.length && a.accounts.every((index, i) => index === b.accounts[i]);
+}
+export function isSafeWalletMessage(originalBytes: Uint8Array, returnedBytes: Uint8Array): boolean {
+  if (Buffer.from(originalBytes).equals(Buffer.from(returnedBytes))) return true;
+  try {
+    const original = Message.from(Buffer.from(originalBytes));
+    const returned = Message.from(Buffer.from(returnedBytes));
+    if (!Buffer.from(original.serialize()).equals(Buffer.from(originalBytes)) ||
+        !Buffer.from(returned.serialize()).equals(Buffer.from(returnedBytes))) return false;
+    const a = original.header, b = returned.header;
+    // Account ordering and header define fee payer, signers, and writable privileges.
+    if (a.numRequiredSignatures !== b.numRequiredSignatures ||
+        a.numReadonlySignedAccounts !== b.numReadonlySignedAccounts ||
+        a.numReadonlyUnsignedAccounts !== b.numReadonlyUnsignedAccounts ||
+        original.recentBlockhash !== returned.recentBlockhash ||
+        original.accountKeys.length !== returned.accountKeys.length ||
+        !original.accountKeys.every((key, i) => key.equals(returned.accountKeys[i])) ||
+        returned.instructions.length !== original.instructions.length + 1) return false;
+    let originalIndex = 0, additions = 0;
+    for (const instruction of returned.instructions) {
+      if (originalIndex < original.instructions.length && sameInstruction(original.instructions[originalIndex], instruction)) {
+        originalIndex++;
+        continue;
+      }
+      // Only one account-free SetComputeUnitPrice is allowed; the original limit
+      // and every original business instruction remain byte-for-byte intact.
+      const data = decodeBase58(instruction.data);
+      if (++additions !== 1 || instruction.accounts.length !== 0 ||
+          !returned.accountKeys[instruction.programIdIndex]?.equals(ComputeBudgetProgram.programId) ||
+          !data || data.length !== 9 || data[0] !== 3 || data.readBigUInt64LE(1) > MAX_COMPUTE_UNIT_PRICE) return false;
+    }
+    return additions === 1 && originalIndex === original.instructions.length;
+  } catch { return false; }
+}
 export function friendlyError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (/rejected|user denied|4001/i.test(message)) return 'The wallet request was rejected. You can try again when ready.';
@@ -86,7 +140,7 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
   await checkDevnet();
   if (!wallet.publicKey) throw new Error('Connect your wallet first.');
   const latest = await connection.getLatestBlockhash('confirmed');
-  // Set the default compute limit explicitly; the complete signed message must still match.
+  // Use a fixed compute limit, and bound any wallet-added price instruction below.
   const transaction = new Transaction({ feePayer: wallet.publicKey, recentBlockhash: latest.blockhash })
     .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }), instruction);
   const originalMessage = Buffer.from(transaction.serializeMessage());
@@ -101,12 +155,21 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
       }
     } catch { console.info('[TrustFlow transaction diagnostic] Comparison unavailable.'); }
   }
-  if (!returnedMessage.equals(originalMessage)) throw new Error('The wallet changed the transaction. The app did not submit it. Check the escrow address before trying again.');
-  if (!signed.signature || !signed.verifySignatures()) throw new Error('The wallet did not provide a valid transaction signature.');
-  const signature = base58(signed.signature);
+  if (!isSafeWalletMessage(originalMessage, returnedMessage)) throw new Error('The wallet changed the transaction or exceeded the priority fee limit. The app did not submit it. Check the escrow address before trying again.');
+  // Validate the actual wire bytes that will be sent, not wallet-supplied methods
+  // or a second serialization after the integrity check.
+  let wire: Buffer;
+  try { wire = Buffer.from(signed.serialize()); } catch { throw new Error('The wallet did not provide a valid transaction signature.'); }
+  if (wire.length < 66 || wire[0] !== 1 || !wire.subarray(65).equals(returnedMessage)) {
+    throw new Error('The wallet changed the transaction. The app did not submit it.');
+  }
+  try {
+    if (!Transaction.from(wire).verifySignatures()) throw new Error('invalid signature');
+  } catch { throw new Error('The wallet did not provide a valid transaction signature.'); }
+  const signature = base58(wire.subarray(1, 65));
   update({ status: 'submitting', signature, detail: 'Signed. Sending to Devnet…' });
   try {
-    const returned = await connection.sendRawTransaction(signed.serialize());
+    const returned = await connection.sendRawTransaction(wire);
     if (returned !== signature) throw new Error('The RPC returned an unexpected transaction signature.');
   } catch (error) {
     update({ status: 'unknown', signature, detail: `Submission could not be confirmed: ${friendlyError(error)} Check the signature before trying again.` });

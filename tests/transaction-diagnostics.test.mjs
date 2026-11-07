@@ -33,7 +33,7 @@ test('diagnostic accepts a valid signed clone with the same message', () => {
 test('diagnostic isolates changed compute budget, recipient, permissions, data and payer', () => {
   const original = transaction(), before = message(original);
   const cases = [
-    [tx => tx.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:1})), r => {assert.equal(r.instructionCountReturned,3); assert.equal(r.computeBudgetCountReturned,2);} ],
+    [tx => tx.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:1})), r => {assert.equal(r.instructionCountReturned,3); assert.equal(r.computeBudgetCountReturned,2); assert.deepEqual(r.computeBudgetReturned[1], {index:2, variant:'setComputeUnitPrice', microLamportsPerUnit:'1', accountCount:0});} ],
     [tx => {tx.instructions[1].keys[1].pubkey = other.publicKey;}, r => assert.equal(r.instructions[1].accounts[1].addressEqual,false)],
     [tx => {tx.instructions[1].keys[1].isWritable = false;}, r => assert.equal(r.instructions[1].accounts[1].writableEqual,false)],
     [tx => {tx.instructions[1].data[4] ^= 1;}, r => assert.equal(r.instructions[1].dataEqual,false)],
