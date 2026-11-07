@@ -42,7 +42,7 @@ Open `http://localhost:3000/`. The client defaults to the deployed ID, uses the 
 
 Before each wallet approval, the client requests a fresh confirmed Devnet blockhash. It checks block height after signing and uses matching confirmed preflight and the blockhash RPC context slot. If approval takes too long, the client stops before submission and asks for a new wallet approval. After a submission with an uncertain result or expired validity window, check the displayed signature and escrow on Explorer before retrying; the client never automatically creates a new signature.
 
-The wallet may add one compute-unit price instruction; the client caps it at 50,000 micro-lamports per unit (at most 10,000 lamports, or 0.00001 Devnet SOL, for the fixed 200,000-unit limit), in addition to the base transaction fee. All original transaction instructions, account privileges, payer, and blockhash must remain unchanged.
+The client specifies a zero compute-unit price before wallet signing, so only the base transaction fee applies. Any wallet change to that price or duplicate price instruction is rejected. All original transaction instructions, account privileges, payer, and blockhash must remain unchanged.
 
 The UI is connected to the configured program rather than a mock; its browser lifecycle has not been verified yet. Historical examples are explicitly labelled and do not initiate transactions. There is no AI service. Never share wallet secrets, use mainnet, or use real funds.
 

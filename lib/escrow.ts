@@ -87,37 +87,50 @@ function sameInstruction(a: Message['instructions'][number], b: Message['instruc
   return a.programIdIndex === b.programIdIndex && a.data === b.data &&
     a.accounts.length === b.accounts.length && a.accounts.every((index, i) => index === b.accounts[i]);
 }
-export function isSafeWalletMessage(originalBytes: Uint8Array, returnedBytes: Uint8Array): boolean {
-  if (Buffer.from(originalBytes).equals(Buffer.from(returnedBytes))) return true;
+type WalletMessageCheck = { safe: true } | { safe: false; reason: string };
+export function checkWalletMessage(originalBytes: Uint8Array, returnedBytes: Uint8Array): WalletMessageCheck {
+  if (Buffer.from(originalBytes).equals(Buffer.from(returnedBytes))) return {safe:true};
+  const reject = (reason: string): WalletMessageCheck => ({safe:false,reason});
   try {
     const original = Message.from(Buffer.from(originalBytes));
     const returned = Message.from(Buffer.from(returnedBytes));
     if (!Buffer.from(original.serialize()).equals(Buffer.from(originalBytes)) ||
-        !Buffer.from(returned.serialize()).equals(Buffer.from(returnedBytes))) return false;
+        !Buffer.from(returned.serialize()).equals(Buffer.from(returnedBytes))) return reject('The message encoding changed.');
     const a = original.header, b = returned.header;
     // Account ordering and header define fee payer, signers, and writable privileges.
     if (a.numRequiredSignatures !== b.numRequiredSignatures ||
         a.numReadonlySignedAccounts !== b.numReadonlySignedAccounts ||
         a.numReadonlyUnsignedAccounts !== b.numReadonlyUnsignedAccounts ||
-        original.recentBlockhash !== returned.recentBlockhash ||
         original.accountKeys.length !== returned.accountKeys.length ||
-        !original.accountKeys.every((key, i) => key.equals(returned.accountKeys[i])) ||
-        returned.instructions.length !== original.instructions.length + 1) return false;
+        !original.accountKeys.every((key, i) => key.equals(returned.accountKeys[i]))) return reject('Account keys, fee payer, or permissions changed.');
+    if (original.recentBlockhash !== returned.recentBlockhash) return reject('The recent blockhash changed.');
+    if (returned.instructions.length <= original.instructions.length) return reject('An original instruction changed or was removed.');
+    if (returned.instructions.length !== original.instructions.length + 1) return reject('The instruction count changed unexpectedly.');
+    const originalHasPrice = original.instructions.some(ix => {
+      if (!original.accountKeys[ix.programIdIndex]?.equals(ComputeBudgetProgram.programId)) return false;
+      const data = decodeBase58(ix.data);
+      return data?.[0] === 3;
+    });
     let originalIndex = 0, additions = 0;
     for (const instruction of returned.instructions) {
       if (originalIndex < original.instructions.length && sameInstruction(original.instructions[originalIndex], instruction)) {
         originalIndex++;
         continue;
       }
-      // Only one account-free SetComputeUnitPrice is allowed; the original limit
-      // and every original business instruction remain byte-for-byte intact.
+      if (++additions !== 1) return reject('More than one instruction changed.');
+      if (!returned.accountKeys[instruction.programIdIndex]?.equals(ComputeBudgetProgram.programId)) return reject('An unexpected program instruction was added or changed.');
+      if (instruction.accounts.length !== 0) return reject('An added compute-budget instruction referenced accounts.');
       const data = decodeBase58(instruction.data);
-      if (++additions !== 1 || instruction.accounts.length !== 0 ||
-          !returned.accountKeys[instruction.programIdIndex]?.equals(ComputeBudgetProgram.programId) ||
-          !data || data.length !== 9 || data[0] !== 3 || data.readBigUInt64LE(1) > MAX_COMPUTE_UNIT_PRICE) return false;
+      if (!data || data.length !== 9 || data[0] !== 3) return reject('The added compute-budget instruction is not a valid compute-unit price.');
+      const price = data.readBigUInt64LE(1);
+      if (price > MAX_COMPUTE_UNIT_PRICE) return reject(`The wallet requested ${price} micro-lamports per compute unit, above the 50,000 safety cap.`);
+      if (originalHasPrice) return reject('The wallet added a duplicate compute-unit price instruction.');
     }
-    return additions === 1 && originalIndex === original.instructions.length;
-  } catch { return false; }
+    return additions === 1 && originalIndex === original.instructions.length ? {safe:true} : reject('An original instruction changed or was removed.');
+  } catch { return reject('The returned transaction message could not be decoded safely.'); }
+}
+export function isSafeWalletMessage(originalBytes: Uint8Array, returnedBytes: Uint8Array): boolean {
+  return checkWalletMessage(originalBytes, returnedBytes).safe;
 }
 export function friendlyError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -141,9 +154,10 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
   if (!wallet.publicKey) throw new Error('Connect your wallet first.');
   // Use a fresh confirmed blockhash and retain its RPC context and expiry.
   const { value: latest, context } = await connection.getLatestBlockhashAndContext('confirmed');
-  // Use a fixed compute limit, and bound any wallet-added price instruction below.
+  // Explicitly set both budget fields so wallets need not inject a priority price.
   const transaction = new Transaction({ feePayer: wallet.publicKey, recentBlockhash: latest.blockhash })
-    .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }), instruction);
+    .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
+      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 0 }), instruction);
   const originalMessage = Buffer.from(transaction.serializeMessage());
   update({ status: 'awaiting-wallet', detail: 'Approve this transaction in your wallet.' });
   const signed = await wallet.signTransaction(transaction);
@@ -156,7 +170,8 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
       }
     } catch { console.info('[TrustFlow transaction diagnostic] Comparison unavailable.'); }
   }
-  if (!isSafeWalletMessage(originalMessage, returnedMessage)) throw new Error('The wallet changed the transaction or exceeded the priority fee limit. The app did not submit it. Check the escrow address before trying again.');
+  const checkedMessage = checkWalletMessage(originalMessage, returnedMessage);
+  if (!checkedMessage.safe) throw new Error(`The wallet changed the transaction. ${checkedMessage.reason} The app did not submit it. Check the escrow address before trying again.`);
   // Validate the actual wire bytes that will be sent, not wallet-supplied methods
   // or a second serialization after the integrity check.
   let wire: Buffer;

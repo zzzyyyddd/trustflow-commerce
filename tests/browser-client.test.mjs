@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Keypair, SystemProgram, TransactionInstruction } from '@solana/web3.js';
-import { createInstruction, actionInstruction, connection, lamports, programId, send } from '../lib/escrow.ts';
+import { createInstruction, actionInstruction, checkWalletMessage, connection, lamports, programId, send } from '../lib/escrow.ts';
 import idl from '../target/idl/trustflow_escrow.json' with { type: 'json' };
 const buyer = Keypair.generate(), seller = Keypair.generate(), arbitrator = Keypair.generate();
 const lookup = name => idl.instructions.find(i => i.name === name);
@@ -84,6 +84,8 @@ test('a simulated wallet-added fee instruction changes the signed message', asyn
       assert(tx.instructions[0].programId.equals(ComputeBudgetProgram.programId));
       assert.equal(tx.instructions[0].data[0], 2); // SetComputeUnitLimit
       assert.equal(tx.instructions[0].data.readUInt32LE(1), 200000);
+      assert.equal(tx.instructions[1].data[0], 3); // SetComputeUnitPrice
+      assert.equal(tx.instructions[1].data.readBigUInt64LE(1), 0n);
       const copy = Transaction.from(tx.serialize({requireAllSignatures:false,verifySignatures:false}));
       copy.partialSign(buyer);
       return copy;
@@ -104,10 +106,10 @@ test('rejects changed payer, blockhash, account, amount, program, flags or inval
     const mutations = [
       tx => {tx.feePayer = seller.publicKey;},
       tx => {tx.recentBlockhash = Keypair.generate().publicKey.toBase58();},
-      tx => {tx.instructions[1].keys[1].pubkey = arbitrator.publicKey;},
-      tx => {tx.instructions[1].data[4] ^= 1;},
-      tx => {tx.instructions[1].programId = arbitrator.publicKey;},
-      tx => {tx.instructions[1].keys[1].isWritable = false;},
+      tx => {tx.instructions.at(-1).keys[1].pubkey = arbitrator.publicKey;},
+      tx => {tx.instructions.at(-1).data[4] ^= 1;},
+      tx => {tx.instructions.at(-1).programId = arbitrator.publicKey;},
+      tx => {tx.instructions.at(-1).keys[1].isWritable = false;},
       tx => {tx.add(SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:arbitrator.publicKey,lamports:1}));},
     ];
     for (const mutate of mutations) {
@@ -120,33 +122,49 @@ test('rejects changed payer, blockhash, account, amount, program, flags or inval
   } finally { for (const [key,value] of Object.entries(originals)) connection[key] = value; }
 });
 
-test('allows only a bounded Phantom-style compute-unit price insertion', async () => {
+test('validates the captured two-instruction message shape and fee cap', async () => {
   const {ComputeBudgetProgram, Transaction} = await import('@solana/web3.js');
-  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction','getSignatureStatuses'].map(k => [k, connection[k]]));
-  let broadcasts = 0, updates = [];
+  const {instruction} = await createInstruction(buyer.publicKey,seller.publicKey,arbitrator.publicKey,42n,1000000n);
+  const blockhash=Keypair.generate().publicKey.toBase58();
+  const old=new Transaction({feePayer:buyer.publicKey,recentBlockhash:blockhash}).add(ComputeBudgetProgram.setComputeUnitLimit({units:200000}),instruction);
+  const before=Buffer.from(old.serializeMessage());
+  assert.equal(before.length,301);
+  for (const position of [0,1,2]) {
+    const clone=Transaction.from(old.serialize({requireAllSignatures:false,verifySignatures:false}));
+    clone.instructions.splice(position,0,ComputeBudgetProgram.setComputeUnitPrice({microLamports:50000}));
+    clone.partialSign(buyer);
+    const after=Buffer.from(clone.serializeMessage());
+    assert.equal(after.length,313);
+    assert.equal(clone.compileMessage().accountKeys.length,7);
+    assert.deepEqual(checkWalletMessage(before,after),{safe:true});
+    assert(clone.verifySignatures());
+  }
+  const excess=Transaction.from(old.serialize({requireAllSignatures:false,verifySignatures:false}));
+  excess.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:50001}));
+  const rejection=checkWalletMessage(before,excess.serializeMessage());
+  assert.equal(rejection.safe,false);assert.match(rejection.reason,/50001.*50,000/);
+});
+
+test('prepopulated zero priority price survives a simulated Phantom signing round-trip', async () => {
+  const {ComputeBudgetProgram, Transaction}=await import('@solana/web3.js');
+  const names=['getGenesisHash','getLatestBlockhashAndContext','getBlockHeight','sendRawTransaction','getSignatureStatuses'];
+  const originals=Object.fromEntries(names.map(k=>[k,connection[k]]));const updates=[];
   try {
-    connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
-    connection.getLatestBlockhashAndContext = async () => ({context:{slot:55},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
-    connection.getBlockHeight = async () => 90;
-    connection.sendRawTransaction = async () => { broadcasts++; return updates.at(-1).signature; };
-    connection.getSignatureStatuses = async () => ({value:[{confirmationStatus:'confirmed',err:null}]});
-    const {instruction} = await createInstruction(buyer.publicKey,seller.publicKey,arbitrator.publicKey,42n,1000000n);
-    for (const position of [0,1,2]) {
-      updates = [];
-      const wallet = {publicKey:buyer.publicKey, signTransaction:async tx => {
-        const before = Buffer.from(tx.serializeMessage());
-        const clone = Transaction.from(tx.serialize({requireAllSignatures:false,verifySignatures:false}));
-        clone.instructions.splice(position,0,ComputeBudgetProgram.setComputeUnitPrice({microLamports:50000}));
-        clone.partialSign(buyer);
-        assert.equal(clone.serializeMessage().length - before.length,12);
-        assert.equal(clone.compileMessage().accountKeys.length, tx.compileMessage().accountKeys.length);
-        return clone;
-      }};
-      await send(wallet,instruction,u=>updates.push(u));
-      assert.equal(updates.at(-1).status,'confirmed');
-    }
-    assert.equal(broadcasts,3);
-  } finally { for (const [key,value] of Object.entries(originals)) connection[key] = value; }
+    connection.getGenesisHash=async()=> 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhashAndContext=async()=>({context:{slot:55},value:{blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100}});
+    connection.getBlockHeight=async()=>90;
+    connection.sendRawTransaction=async()=>updates.at(-1).signature;
+    connection.getSignatureStatuses=async()=>({value:[{confirmationStatus:'confirmed',err:null}]});
+    const wallet={publicKey:buyer.publicKey,signTransaction:async tx=>{
+      const clone=Transaction.from(tx.serialize({requireAllSignatures:false,verifySignatures:false}));
+      assert(clone.instructions[1].programId.equals(ComputeBudgetProgram.programId));
+      assert.equal(clone.instructions[1].data[0],3);
+      assert.equal(clone.instructions[1].data.readBigUInt64LE(1),0n);
+      clone.partialSign(buyer);return clone;
+    }};
+    const {instruction}=await createInstruction(buyer.publicKey,seller.publicKey,arbitrator.publicKey,42n,1000000n);
+    await send(wallet,instruction,u=>updates.push(u));assert.equal(updates.at(-1).status,'confirmed');
+  } finally {for(const [key,value] of Object.entries(originals))connection[key]=value;}
 });
 
 test('rejects unsafe or disguised compute budget additions without broadcasting', async () => {
@@ -170,9 +188,9 @@ test('rejects unsafe or disguised compute budget additions without broadcasting'
       tx => tx.add(new TransactionInstruction({programId:ComputeBudgetProgram.programId,keys:[],data:Buffer.from([4,1,0,0,0])})),
       tx => {const x=ComputeBudgetProgram.setComputeUnitPrice({microLamports:1});x.keys.push({pubkey:buyer.publicKey,isSigner:true,isWritable:true});tx.add(x);},
       tx => {const x=ComputeBudgetProgram.setComputeUnitPrice({microLamports:1});x.programId=SystemProgram.programId;tx.add(x);},
-      tx => {addPrice(tx);tx.instructions[2].keys[1].pubkey=arbitrator.publicKey;},
-      tx => {addPrice(tx);tx.instructions[2].data[4]^=1;},
-      tx => {addPrice(tx);tx.instructions[2].keys[1].isWritable=false;},
+      tx => {addPrice(tx);tx.instructions.at(-1).keys[1].pubkey=arbitrator.publicKey;},
+      tx => {addPrice(tx);tx.instructions.at(-1).data[4]^=1;},
+      tx => {addPrice(tx);tx.instructions.at(-1).keys[1].isWritable=false;},
       tx => {addPrice(tx);tx.feePayer=seller.publicKey;},
       tx => {addPrice(tx);tx.recentBlockhash=Keypair.generate().publicKey.toBase58();},
       tx => {addPrice(tx);tx.instructions.reverse();},
@@ -199,7 +217,7 @@ test('checks the actual serialized wire transaction before broadcast', async () 
     const wallet={publicKey:buyer.publicKey,signTransaction:async tx=>{
       tx.partialSign(buyer);
       const forged=Transaction.from(tx.serialize());
-      forged.instructions[1].keys[1].pubkey=arbitrator.publicKey;
+      forged.instructions.at(-1).keys[1].pubkey=arbitrator.publicKey;
       forged.partialSign(buyer);
       tx.serialize=()=>forged.serialize();
       return tx;
@@ -290,4 +308,28 @@ test('failure to check block height stops before submission', async () => {
     await assert.rejects(send(wallet,instruction,u=>updates.push(u)),/did not submit/);
     assert.equal(updates.at(-1).status,'failed');assert.equal(sends,0);
   } finally {for(const [key,value] of Object.entries(original))connection[key]=value;}
+});
+
+test('explains fee limits and rejects duplicate, changed or unrecognized instructions', async () => {
+  const {ComputeBudgetProgram, Transaction}=await import('@solana/web3.js');
+  const blockhash=Keypair.generate().publicKey.toBase58();
+  const business=SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+  const make=(price=false)=>{
+    const tx=new Transaction({feePayer:buyer.publicKey,recentBlockhash:blockhash}).add(ComputeBudgetProgram.setComputeUnitLimit({units:200000}));
+    if(price) tx.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:0}));
+    return tx.add(business);
+  };
+  const copy=tx=>Transaction.from(tx.serialize({requireAllSignatures:false,verifySignatures:false}));
+  const base=make(), original=Buffer.from(base.serializeMessage());
+  const excess=copy(base);excess.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:50001}));
+  assert.match(checkWalletMessage(original,excess.serializeMessage()).reason,/50001.*50,000/);
+  const other=copy(base);other.add(ComputeBudgetProgram.requestHeapFrame({bytes:32768}));
+  assert.match(checkWalletMessage(original,other.serializeMessage()).reason,/not a valid compute-unit price/);
+  const originalWithPrice=make(true), before=Buffer.from(originalWithPrice.serializeMessage());
+  const duplicate=copy(originalWithPrice);duplicate.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:1}));
+  assert.match(checkWalletMessage(before,duplicate.serializeMessage()).reason,/duplicate compute-unit price/);
+  const modified=copy(originalWithPrice);modified.instructions[1].data[1]=1;
+  assert.match(checkWalletMessage(before,modified.serializeMessage()).reason,/original instruction changed/);
+  const alteredPayer=copy(originalWithPrice);alteredPayer.feePayer=arbitrator.publicKey;
+  assert.match(checkWalletMessage(before,alteredPayer.serializeMessage()).reason,/Account keys, fee payer, or permissions changed/);
 });
