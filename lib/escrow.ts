@@ -1,5 +1,5 @@
 import { Buffer } from 'buffer';
-import { Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
+import { ComputeBudgetProgram, Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 
 export const connection = new Connection('https://api.devnet.solana.com', {commitment: 'confirmed', disableRetryOnRateLimit: true});
 const GENESIS = 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
@@ -86,12 +86,15 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
   await checkDevnet();
   if (!wallet.publicKey) throw new Error('Connect your wallet first.');
   const latest = await connection.getLatestBlockhash('confirmed');
-  const transaction = new Transaction({ feePayer: wallet.publicKey, recentBlockhash: latest.blockhash }).add(instruction);
+  // An explicit default budget prevents Phantom from adding priority-fee instructions
+  // after the user approves; the complete signed message must still match exactly.
+  const transaction = new Transaction({ feePayer: wallet.publicKey, recentBlockhash: latest.blockhash })
+    .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }), instruction);
   const originalMessage = Buffer.from(transaction.serializeMessage());
   update({ status: 'awaiting-wallet', detail: 'Approve this transaction in your wallet.' });
   const signed = await wallet.signTransaction(transaction);
   if (!Buffer.from(signed.serializeMessage()).equals(originalMessage)) throw new Error('The wallet changed the transaction. Please try again.');
-  if (!signed.signature) throw new Error('The wallet did not sign the transaction.');
+  if (!signed.signature || !signed.verifySignatures()) throw new Error('The wallet did not provide a valid transaction signature.');
   const signature = base58(signed.signature);
   update({ status: 'submitting', signature, detail: 'Signed. Sending to Devnet…' });
   try {

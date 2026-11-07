@@ -57,3 +57,62 @@ test('client retains signed signature and distinguishes confirmed, failed and un
     await assert.rejects(send(wallet, instruction, u => updates.push(u)), /not Solana Devnet/);
   } finally { restore(); }
 });
+
+test('Phantom-style priority fee augmentation explains the strict message mismatch', async () => {
+  const { ComputeBudgetProgram, Transaction } = await import('@solana/web3.js');
+  const blockhash = Keypair.generate().publicKey.toBase58();
+  const ix = SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+  const old = new Transaction({feePayer:buyer.publicKey,recentBlockhash:blockhash}).add(ix);
+  const original = Buffer.from(old.serializeMessage());
+  // Model the documented wallet behavior, not a real Phantom browser session.
+  const walletCopy = Transaction.from(old.serialize({requireAllSignatures:false,verifySignatures:false}));
+  walletCopy.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:1}));
+  walletCopy.partialSign(buyer);
+  assert(walletCopy.verifySignatures());
+  assert(!Buffer.from(walletCopy.serializeMessage()).equals(original));
+
+  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction','getSignatureStatuses'].map(k => [k, connection[k]]));
+  const updates = [];
+  try {
+    connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhash = async () => ({blockhash,lastValidBlockHeight:100});
+    connection.sendRawTransaction = async () => updates.at(-1).signature;
+    connection.getSignatureStatuses = async () => ({value:[{confirmationStatus:'confirmed',err:null}]});
+    const wallet = {publicKey:buyer.publicKey, signTransaction:async tx => {
+      assert(tx.instructions[0].programId.equals(ComputeBudgetProgram.programId));
+      assert.equal(tx.instructions[0].data[0], 2); // SetComputeUnitLimit
+      assert.equal(tx.instructions[0].data.readUInt32LE(1), 200000);
+      const copy = Transaction.from(tx.serialize({requireAllSignatures:false,verifySignatures:false}));
+      copy.partialSign(buyer);
+      return copy;
+    }};
+    await send(wallet,ix,u=>updates.push(u));
+    assert.equal(updates.at(-1).status,'confirmed');
+  } finally { for (const [key,value] of Object.entries(originals)) connection[key] = value; }
+});
+
+test('rejects changed payer, blockhash, account, amount, program, flags or invalid signature', async () => {
+  const originals = Object.fromEntries(['getGenesisHash','getLatestBlockhash','sendRawTransaction'].map(k => [k, connection[k]]));
+  let broadcasts = 0;
+  try {
+    connection.getGenesisHash = async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
+    connection.getLatestBlockhash = async () => ({blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100});
+    connection.sendRawTransaction = async () => { broadcasts++; return ''; };
+    const mutations = [
+      tx => {tx.feePayer = seller.publicKey;},
+      tx => {tx.recentBlockhash = Keypair.generate().publicKey.toBase58();},
+      tx => {tx.instructions[1].keys[1].pubkey = arbitrator.publicKey;},
+      tx => {tx.instructions[1].data[4] ^= 1;},
+      tx => {tx.instructions[1].programId = arbitrator.publicKey;},
+      tx => {tx.instructions[1].keys[1].isWritable = false;},
+      tx => {tx.add(SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:arbitrator.publicKey,lamports:1}));},
+    ];
+    for (const mutate of mutations) {
+      const ix = SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+      await assert.rejects(send({publicKey:buyer.publicKey, signTransaction:async tx => {mutate(tx);return tx;}},ix,()=>{}), /wallet changed/);
+    }
+    const ix = SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
+    await assert.rejects(send({publicKey:buyer.publicKey, signTransaction:async tx => {tx.addSignature(buyer.publicKey,Buffer.alloc(64,1));return tx;}},ix,()=>{}), /valid transaction signature/);
+    assert.equal(broadcasts,0);
+  } finally { for (const [key,value] of Object.entries(originals)) connection[key] = value; }
+});
