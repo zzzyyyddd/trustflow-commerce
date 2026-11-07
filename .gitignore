@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+target/
+.anchor/
+.env*
+!.env.example
+*.log
+.DS_Store
+
+# Secrets and local credentials
+*-keypair.json
+id.json
+*.pem
+*.key
+.vercel/

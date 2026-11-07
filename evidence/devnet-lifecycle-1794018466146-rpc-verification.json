@@ -1,0 +1,179 @@
+{
+  "source": "https://api.devnet.solana.com",
+  "method": "getSignatureStatuses",
+  "observedAt": "2026-11-07T02:30:56.715Z",
+  "contextSlot": 519509685,
+  "transactions": [
+    {
+      "label": "initialize seller",
+      "signature": "3nDv8GZAzUFjpFfwudRC7aCVhm3hJzUQSpYSm4uezAGZhALLGeE7dWQCKeETYWbiaCtPUDg2Y7FpmN1WDcN6Ktyt",
+      "explorer": "https://explorer.solana.com/tx/3nDv8GZAzUFjpFfwudRC7aCVhm3hJzUQSpYSm4uezAGZhALLGeE7dWQCKeETYWbiaCtPUDg2Y7FpmN1WDcN6Ktyt?cluster=devnet",
+      "slot": 519509395,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "initialize arbitrator",
+      "signature": "2ahaAq7wpfjgEZNkPRENzQEARxmMiiMQbSzGVdAYe42WWzPRNECALaPveTpA76gHCZt1SC3LTXA996v6LxrQ8y8e",
+      "explorer": "https://explorer.solana.com/tx/2ahaAq7wpfjgEZNkPRENzQEARxmMiiMQbSzGVdAYe42WWzPRNECALaPveTpA76gHCZt1SC3LTXA996v6LxrQ8y8e?cluster=devnet",
+      "slot": 519509398,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "initialize stranger",
+      "signature": "4MMsW2AsZthuRwsoZqS6VmtMLi6b55GRUjCWUM8QaJg2znymn8JKUXxhqux4hbUQjDPKBMpc1DqY63DcV9J8TUAS",
+      "explorer": "https://explorer.solana.com/tx/4MMsW2AsZthuRwsoZqS6VmtMLi6b55GRUjCWUM8QaJg2znymn8JKUXxhqux4hbUQjDPKBMpc1DqY63DcV9J8TUAS?cluster=devnet",
+      "slot": 519509402,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "release flow create",
+      "signature": "2CimghxLtJitwtXKB2dMNPS8hKkTSjRr7mSopDc9sd3Ny1ZwxfWtQh5LxftSHdMmBfHHe1HrA5QKV5UchJNchT7r",
+      "explorer": "https://explorer.solana.com/tx/2CimghxLtJitwtXKB2dMNPS8hKkTSjRr7mSopDc9sd3Ny1ZwxfWtQh5LxftSHdMmBfHHe1HrA5QKV5UchJNchT7r?cluster=devnet",
+      "slot": 519509406,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "fund",
+      "signature": "4j9daABaCriL9pbiSLor1kqakg2NhYxgWTC4a7fgM2163Syk9E9t42fy5HHZSeuSh1UmpyF7zvFHcvnVtMFoTeot",
+      "explorer": "https://explorer.solana.com/tx/4j9daABaCriL9pbiSLor1kqakg2NhYxgWTC4a7fgM2163Syk9E9t42fy5HHZSeuSh1UmpyF7zvFHcvnVtMFoTeot?cluster=devnet",
+      "slot": 519509410,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "unauthorized approval",
+      "signature": "dK2b888xVx9wd9awMHSnQVqDW6aGv1dfFbjAzzYapeKcwiqTRFAXufy7i3ce4VanxsAdrQDeaqQKpqMj2Sx7w6H",
+      "explorer": "https://explorer.solana.com/tx/dK2b888xVx9wd9awMHSnQVqDW6aGv1dfFbjAzzYapeKcwiqTRFAXufy7i3ce4VanxsAdrQDeaqQKpqMj2Sx7w6H?cluster=devnet",
+      "slot": 519509415,
+      "confirmationStatus": "finalized",
+      "error": {
+        "InstructionError": [
+          0,
+          {
+            "Custom": 2001
+          }
+        ]
+      }
+    },
+    {
+      "label": "submit evidence",
+      "signature": "A7sx9TNrQhniJSjM6nPGzBEqNPjXuRn79ddhWQHjE6qQpykxnqmAQXqZ7RbLgPYteFHeUra5PsCEPX97eXQs4s6",
+      "explorer": "https://explorer.solana.com/tx/A7sx9TNrQhniJSjM6nPGzBEqNPjXuRn79ddhWQHjE6qQpykxnqmAQXqZ7RbLgPYteFHeUra5PsCEPX97eXQs4s6?cluster=devnet",
+      "slot": 519509419,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "approve",
+      "signature": "4PSfWaiGhbHSy9XCgEMqvfE9xc7r8HS4W1ncoZXSXr4hoWy1BzLzmnCdDnsXTPNqUMrGY2DAQney3HnEnhymbGdt",
+      "explorer": "https://explorer.solana.com/tx/4PSfWaiGhbHSy9XCgEMqvfE9xc7r8HS4W1ncoZXSXr4hoWy1BzLzmnCdDnsXTPNqUMrGY2DAQney3HnEnhymbGdt?cluster=devnet",
+      "slot": 519509422,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "invalid recipient",
+      "signature": "2rL1MLMDm3x8xn82kernsUe2JydRtFHX6C7rFSUHLEbAMDFPGDqPUf94V6p3wQVpB8Un4XxnhU6rrsYpVZaL2L7D",
+      "explorer": "https://explorer.solana.com/tx/2rL1MLMDm3x8xn82kernsUe2JydRtFHX6C7rFSUHLEbAMDFPGDqPUf94V6p3wQVpB8Un4XxnhU6rrsYpVZaL2L7D?cluster=devnet",
+      "slot": 519509451,
+      "confirmationStatus": "finalized",
+      "error": {
+        "InstructionError": [
+          0,
+          {
+            "Custom": 2001
+          }
+        ]
+      }
+    },
+    {
+      "label": "release",
+      "signature": "2v5PD3eYrU8i2sEinL7CYSsu26w38mrYuWQXdHuJqHCYHG5g62NudxYD362G3R6u7LCmZKAk1T6ATJ8Nb9NPqzvA",
+      "explorer": "https://explorer.solana.com/tx/2v5PD3eYrU8i2sEinL7CYSsu26w38mrYuWQXdHuJqHCYHG5g62NudxYD362G3R6u7LCmZKAk1T6ATJ8Nb9NPqzvA?cluster=devnet",
+      "slot": 519509454,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "double release",
+      "signature": "3S5RXm5AueVpy6vmJxaLLqdY5T71Cib1pUbiCMpPHd3Ym9QjmvCNAAPBUBUvQvzcUnF6gNpMyiiuThzfAPEygTRz",
+      "explorer": "https://explorer.solana.com/tx/3S5RXm5AueVpy6vmJxaLLqdY5T71Cib1pUbiCMpPHd3Ym9QjmvCNAAPBUBUvQvzcUnF6gNpMyiiuThzfAPEygTRz?cluster=devnet",
+      "slot": 519509459,
+      "confirmationStatus": "finalized",
+      "error": {
+        "InstructionError": [
+          0,
+          {
+            "Custom": 6003
+          }
+        ]
+      }
+    },
+    {
+      "label": "refund flow create",
+      "signature": "5YY1EdPohf9tpjfXCZuJzmopFVjYBgh9nq1RoAte48Bqy9wRzyJnNTtBiQBPnGxG5Vw7MRsFExFFHXNDq6RSCcep",
+      "explorer": "https://explorer.solana.com/tx/5YY1EdPohf9tpjfXCZuJzmopFVjYBgh9nq1RoAte48Bqy9wRzyJnNTtBiQBPnGxG5Vw7MRsFExFFHXNDq6RSCcep?cluster=devnet",
+      "slot": 519509462,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "fund refund flow",
+      "signature": "3DXwfBCDRtG2ECg6e9nFN9n4MkDiL9h4T4VQ4u873FodNbTyFCEjga2auUC2SWN6nXma1pyhbLeiuXXM3YqXnTbA",
+      "explorer": "https://explorer.solana.com/tx/3DXwfBCDRtG2ECg6e9nFN9n4MkDiL9h4T4VQ4u873FodNbTyFCEjga2auUC2SWN6nXma1pyhbLeiuXXM3YqXnTbA?cluster=devnet",
+      "slot": 519509466,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "dispute",
+      "signature": "5nbqcm73Wb8SxB8vFQDcGaWgy3TT3rYUx8yhVPWyihK9qkwpAg27K2CTa1Py9g5xgh7DymQzsA489Q3sAKT7Ygmb",
+      "explorer": "https://explorer.solana.com/tx/5nbqcm73Wb8SxB8vFQDcGaWgy3TT3rYUx8yhVPWyihK9qkwpAg27K2CTa1Py9g5xgh7DymQzsA489Q3sAKT7Ygmb?cluster=devnet",
+      "slot": 519509473,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "unauthorized refund",
+      "signature": "6552Qh3x5VdWcgEmZB5TSSJ9HgDLuXkQ9E2Ua3Jx8DoCrorgR9Z1QZ5HTkD8J3ft4QiMe7kMVTFDSiKr6ys8D347",
+      "explorer": "https://explorer.solana.com/tx/6552Qh3x5VdWcgEmZB5TSSJ9HgDLuXkQ9E2Ua3Jx8DoCrorgR9Z1QZ5HTkD8J3ft4QiMe7kMVTFDSiKr6ys8D347?cluster=devnet",
+      "slot": 519509477,
+      "confirmationStatus": "finalized",
+      "error": {
+        "InstructionError": [
+          0,
+          {
+            "Custom": 2001
+          }
+        ]
+      }
+    },
+    {
+      "label": "refund",
+      "signature": "hDXjVABnJwfdN8RWJekQU3BPJZw8jteVP3MFsCfF62iNLToPnn9eRZFvLFQtSfAig7QZ1zAFVkaw3qMKn1MDpJn",
+      "explorer": "https://explorer.solana.com/tx/hDXjVABnJwfdN8RWJekQU3BPJZw8jteVP3MFsCfF62iNLToPnn9eRZFvLFQtSfAig7QZ1zAFVkaw3qMKn1MDpJn?cluster=devnet",
+      "slot": 519509481,
+      "confirmationStatus": "finalized",
+      "error": null
+    },
+    {
+      "label": "double refund",
+      "signature": "4BXz74N66WqRxn5wPiLhQpjELk55tJzaqpEMP5Nnmzu56Li13h5Qqbpk48SvzPRDQybS7AV7o6256AKh93ZyVdxT",
+      "explorer": "https://explorer.solana.com/tx/4BXz74N66WqRxn5wPiLhQpjELk55tJzaqpEMP5Nnmzu56Li13h5Qqbpk48SvzPRDQybS7AV7o6256AKh93ZyVdxT?cluster=devnet",
+      "slot": 519509491,
+      "confirmationStatus": "finalized",
+      "error": {
+        "InstructionError": [
+          0,
+          {
+            "Custom": 6003
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+[toolchain]
+
+[features]
+# Anchor IDL seed auto-resolution is disabled; clients derive the same PDA explicitly.
+resolution = false
+skip-lint = false
+
+[programs.devnet]
+trustflow_escrow = "8DK8Z1Uz8Nv3KTvVE7kxrm79mijQEL2nC5CAacPHgJ4Z"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "cargo test --workspace"

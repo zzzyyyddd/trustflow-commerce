@@ -1,0 +1,10 @@
+# Build and keypair artifacts never belong in the upload.
+target/
+.anchor/
+.git/
+.vercel/
+node_modules/
+.next/
+out/
+.env*
+*.log
