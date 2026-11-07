@@ -86,14 +86,22 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
   await checkDevnet();
   if (!wallet.publicKey) throw new Error('Connect your wallet first.');
   const latest = await connection.getLatestBlockhash('confirmed');
-  // An explicit default budget prevents Phantom from adding priority-fee instructions
-  // after the user approves; the complete signed message must still match exactly.
+  // Set the default compute limit explicitly; the complete signed message must still match.
   const transaction = new Transaction({ feePayer: wallet.publicKey, recentBlockhash: latest.blockhash })
     .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }), instruction);
   const originalMessage = Buffer.from(transaction.serializeMessage());
   update({ status: 'awaiting-wallet', detail: 'Approve this transaction in your wallet.' });
   const signed = await wallet.signTransaction(transaction);
-  if (!Buffer.from(signed.serializeMessage()).equals(originalMessage)) throw new Error('The wallet changed the transaction. Please try again.');
+  const returnedMessage = Buffer.from(signed.serializeMessage());
+  if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+    try {
+      if (window.localStorage.getItem('trustflow.debugTransaction') === 'true') {
+        const { compareTransactionMessages } = await import('./transaction-diagnostics');
+        console.info('[TrustFlow transaction diagnostic]', compareTransactionMessages(originalMessage, returnedMessage));
+      }
+    } catch { console.info('[TrustFlow transaction diagnostic] Comparison unavailable.'); }
+  }
+  if (!returnedMessage.equals(originalMessage)) throw new Error('The wallet changed the transaction. The app did not submit it. Check the escrow address before trying again.');
   if (!signed.signature || !signed.verifySignatures()) throw new Error('The wallet did not provide a valid transaction signature.');
   const signature = base58(signed.signature);
   update({ status: 'submitting', signature, detail: 'Signed. Sending to Devnet…' });

@@ -58,7 +58,7 @@ test('client retains signed signature and distinguishes confirmed, failed and un
   } finally { restore(); }
 });
 
-test('Phantom-style priority fee augmentation explains the strict message mismatch', async () => {
+test('a simulated wallet-added fee instruction changes the signed message', async () => {
   const { ComputeBudgetProgram, Transaction } = await import('@solana/web3.js');
   const blockhash = Keypair.generate().publicKey.toBase58();
   const ix = SystemProgram.transfer({fromPubkey:buyer.publicKey,toPubkey:seller.publicKey,lamports:1});
