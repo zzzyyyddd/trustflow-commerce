@@ -124,3 +124,7 @@ Not yet published. The [judge guide](docs/JUDGE_GUIDE.md) provides a read-only r
 | `scripts/` | Devnet lifecycle and RPC helpers |
 | `evidence/` | Original historical run and read-only RPC verification snapshot |
 | `docs/` | Judge route, security model, architecture, testing, and evidence |
+
+## License
+
+[MIT License](LICENSE) © 2026 A Raqib Habibullah.
