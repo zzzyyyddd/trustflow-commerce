@@ -5,7 +5,7 @@ export const connection = new Connection('https://api.devnet.solana.com', {commi
 const GENESIS = 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
 export const states = ['Created', 'Funded', 'Evidence submitted', 'Approved', 'Released', 'Disputed', 'Refunded'] as const;
 export type Escrow = { address: PublicKey; id: bigint; buyer: PublicKey; seller: PublicKey; arbitrator: PublicKey; amount: bigint; evidence: string; status: number };
-export type Wallet = { publicKey: PublicKey | null; connect(): Promise<{ publicKey: PublicKey }>; signTransaction(tx: Transaction): Promise<Transaction>; on?(event: string, listener: (key: PublicKey | null) => void): void; removeListener?(event: string, listener: (key: PublicKey | null) => void): void };
+export type Wallet = { publicKey: PublicKey | null; isConnected?: boolean; connect(): Promise<{ publicKey: PublicKey }>; disconnect(): Promise<void>; signTransaction(tx: Transaction): Promise<Transaction>; on?(event: string, listener: (key: PublicKey | null) => void): void; removeListener?(event: string, listener: (key: PublicKey | null) => void): void };
 export type TransactionStatus = 'awaiting-wallet' | 'submitting' | 'pending' | 'confirmed' | 'failed' | 'expired' | 'unknown';
 export type TransactionUpdate = { status: TransactionStatus; signature?: string; detail: string };
 
@@ -149,18 +149,24 @@ export async function signatureStatus(signature: string): Promise<'confirmed' | 
   if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) return status.err ? 'failed' : 'confirmed';
   return 'pending';
 }
-export async function send(wallet: Wallet, instruction: TransactionInstruction, update: (value: TransactionUpdate) => void): Promise<string> {
+export async function send(wallet: Wallet, instruction: TransactionInstruction, update: (value: TransactionUpdate) => void, isSessionCurrent: () => boolean = () => true): Promise<string> {
+  const requireSession = () => { if (!isSessionCurrent()) throw new Error('Wallet session changed. This action was cancelled.'); };
+  requireSession();
   await checkDevnet();
+  requireSession();
   if (!wallet.publicKey) throw new Error('Connect your wallet first.');
   // Use a fresh confirmed blockhash and retain its RPC context and expiry.
   const { value: latest, context } = await connection.getLatestBlockhashAndContext('confirmed');
+  requireSession();
   // Explicitly set both budget fields so wallets need not inject a priority price.
   const transaction = new Transaction({ feePayer: wallet.publicKey, recentBlockhash: latest.blockhash })
     .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
       ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 0 }), instruction);
   const originalMessage = Buffer.from(transaction.serializeMessage());
   update({ status: 'awaiting-wallet', detail: 'Approve this transaction in your wallet.' });
+  requireSession();
   const signed = await wallet.signTransaction(transaction);
+  requireSession();
   const returnedMessage = Buffer.from(signed.serializeMessage());
   if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
     try {
@@ -189,16 +195,19 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
     const detail = 'Could not check the blockhash lifetime. The app did not submit this transaction; retry requires a new wallet approval.';
     update({status:'failed', signature, detail}); throw new Error(detail);
   }
+  requireSession();
   if (height > latest.lastValidBlockHeight) {
     const detail = 'The blockhash expired while awaiting approval. The app did not submit this transaction; create a new transaction and approve it in your wallet.';
     update({status:'expired', signature, detail}); throw new Error(detail);
   }
   update({ status: 'submitting', signature, detail: 'Signed. Sending to Devnet…' });
   try {
+    requireSession();
     const returned = await connection.sendRawTransaction(wire, {
       skipPreflight:false, preflightCommitment:'confirmed', minContextSlot:context.slot, maxRetries:3,
     });
     if (returned !== signature) throw new Error('The RPC returned an unexpected transaction signature.');
+    requireSession();
   } catch (error) {
     if (error instanceof SendTransactionError && /blockhash(?: not found|notfound)/i.test(error.transactionError.message)) {
       const detail = 'The Devnet RPC could not find the blockhash during preflight. This submission was rejected; the hash may have expired or the RPC may be behind. Check the signature before explicitly retrying with wallet approval.';
@@ -216,7 +225,9 @@ export async function send(wallet: Wallet, instruction: TransactionInstruction, 
   let nextHeightCheck = 0;
   while (Date.now() < deadline) {
     try {
+      requireSession();
       const response = await connection.getSignatureStatuses([signature], {searchTransactionHistory:true});
+      requireSession();
       const status = response.value[0];
       if (status?.err && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
         const detail = `Transaction failed: ${friendlyError(JSON.stringify(status.err))}`;
