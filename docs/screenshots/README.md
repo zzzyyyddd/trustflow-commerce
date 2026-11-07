@@ -1,12 +1,7 @@
-# Screenshot capture checklist
+# Screenshots
 
-No suitable TrustFlow screenshots were present in the project when this directory was created. Do not add invented mockups or broken image links.
+The eight PNGs in this directory are genuine interface captures, grouped in the [README gallery](../../README.md#screenshots). They show the homepage, the create-to-release path, and a separate dispute/refund path. Public wallet addresses and transaction signatures are visible; no wallet secrets are needed to view them.
 
-Capture genuine images after a real Devnet browser walkthrough, then link them from the root README with descriptive alt text:
+The captures illustrate browser states. The independently recorded, script-generated historical transaction signatures and escrow accounts are listed in [Devnet evidence](../DEVNET_EVIDENCE.md); do not assume the captures show those same accounts or transactions. For current on-chain status, follow the Explorer links in that record.
 
-1. **Landing and Devnet indicator** — show the actual public app and the Devnet test-network label. Suggested filename: `landing-devnet.png`.
-2. **Funded milestone and evidence** — show a real escrow account’s role, state, and evidence hash after successful transactions. Suggested filename: `escrow-evidence.png`.
-3. **Release or refund on Explorer** — show a finalized Devnet transaction and its signature. Suggested filename: `release-explorer.png` or `refund-explorer.png`.
-4. **Historical evidence section** — show the live app’s clearly labelled historical paths and expected rejections. Suggested filename: `historical-evidence.png`.
-
-Before committing, crop out personal browser tabs, notifications, wallet balances, QR codes, seed phrases, private keys, and other sensitive information. Use only public addresses and signatures intended for publication. Record capture dates in captions, and keep Explorer links alongside images so judges can verify current chain data. Screenshots are historical captures, not proof of a new transaction by themselves.
+Before adding more screenshots, remove personal browser tabs, notifications, wallet balances, QR codes, recovery phrases, private keys, and other sensitive information. Keep only public addresses and signatures intended for publication.

@@ -6,9 +6,13 @@ This page records **historical script-generated Devnet transactions**. It does n
 - **Deployment:** [finalized transaction](https://explorer.solana.com/tx/4VtsgZ7cvJeReCQ1Fshs6KW1z7Qxgut3s2LLBnvgmaaWAB16wE4aotWC6yasBXKy44rvZkrkcjyhmi3edFpF9dXt?cluster=devnet)
 - **Original run:** [JSON record](../evidence/devnet-lifecycle-1794018466146.json) · **Prior read-only verification:** [JSON snapshot](../evidence/devnet-lifecycle-1794018466146-rpc-verification.json)
 
+The [browser screenshot gallery](../README.md#screenshots) shows interface states from separate browser escrows; it should not be read as a screenshot record of the script transactions below. In the browser, SHA-256 is computed locally: the selected file stays on the device, and only its hash is recorded on-chain.
+
 The original script stopped while confirming the final double-refund rejection. Its last record therefore says `submitted` and has no overall PASS. Later read-only RPC checks confirmed that signature finalized with the expected error. The original record has not been rewritten.
 
 ## Release path
+
+Browser captures: [create](screenshots/02-create-escrow.png) · [fund](screenshots/03-fund-escrow.png) · [submit evidence](screenshots/04-submit-evidence.png) · [approve](screenshots/05-approve-evidence.png) · [release](screenshots/06-release-to-seller.png).
 
 The buyer created and funded the [release escrow](https://explorer.solana.com/address/CmVkARS3jdok39nRGmGfUYkBhzamcLeqw9Rx7CaZYdGL?cluster=devnet); the seller submitted evidence; the buyer approved; then release succeeded. The account’s stored milestone amount was 100,000 lamports (0.0001 Devnet SOL) and its state byte was `Released` when rechecked at finalized slot 519616079. The release transaction reduced the escrow by 100,000 lamports and increased the seller balance by 100,000 lamports.
 
@@ -21,6 +25,8 @@ The buyer created and funded the [release escrow](https://explorer.solana.com/ad
 | release | Succeeded | 519509454 | [2v5PD3eYrU8i…](https://explorer.solana.com/tx/2v5PD3eYrU8i2sEinL7CYSsu26w38mrYuWQXdHuJqHCYHG5g62NudxYD362G3R6u7LCmZKAk1T6ATJ8Nb9NPqzvA?cluster=devnet) |
 
 ## Dispute and refund path
+
+Browser captures: [disputed](screenshots/07-disputed.png) · [refunded](screenshots/08-refunded.png).
 
 This is a separate [refund escrow](https://explorer.solana.com/address/96xf2BKWdudapf2yjSfuE7QUQbk9NPKgYYcubsufVTW3?cluster=devnet). Its stored milestone amount was 100,000 lamports (0.0001 Devnet SOL) and its state byte was `Refunded` when rechecked at finalized slot 519616079. The refund transaction reduced the escrow by 100,000 lamports; the buyer’s net balance increased by 90,000 lamports after paying the 10,000-lamport transaction fee. The arbitrator authorized the refund; it was not a timeout refund.
 

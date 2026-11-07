@@ -82,11 +82,37 @@ On 7 November 2026, 30 JavaScript checks, 7 Rust unit tests, TypeScript, and the
 - **Historical run:** 17 transaction signatures were rechecked as finalized with their expected outcomes on 7 November 2026; five are **expected failures**, not successful operations. [Evidence and provenance →](docs/DEVNET_EVIDENCE.md)
 - **Frontend:** [public Vercel deployment](https://trustflow-commerce-six.vercel.app), built as a static export using [`vercel.json`](vercel.json).
 
-## Screenshots and demo video
+## Screenshots
 
-No suitable project screenshots are currently stored in this repository. Use the [capture checklist](docs/screenshots/README.md) to add genuine, redacted screenshots from the app and Explorer.
+These genuine interface captures show a browser walkthrough. The Happy Path and Dispute/Refund Path use separate escrow accounts; the [historical script transactions](docs/DEVNET_EVIDENCE.md) are a separate evidence record.
 
-**Demo video:** not yet published. Record a short walkthrough after verifying the real Phantom flow; do not substitute historical script results for a browser demonstration.
+### Overview
+
+![TrustFlow homepage and Devnet demo](docs/screenshots/01-trustflow-homepage.png)
+
+### Happy Path
+
+| Create escrow | Fund escrow |
+| --- | --- |
+| ![Created escrow](docs/screenshots/02-create-escrow.png) | ![Funded escrow](docs/screenshots/03-fund-escrow.png) |
+
+| Submit evidence | Approve evidence |
+| --- | --- |
+| ![Evidence submitted](docs/screenshots/04-submit-evidence.png) | ![Evidence approved](docs/screenshots/05-approve-evidence.png) |
+
+| Release to seller |
+| --- |
+| ![Released escrow](docs/screenshots/06-release-to-seller.png) |
+
+### Dispute/Refund Path
+
+| Disputed | Refunded by arbitrator |
+| --- | --- |
+| ![Disputed escrow](docs/screenshots/07-disputed.png) | ![Refunded escrow](docs/screenshots/08-refunded.png) |
+
+## Demo video
+
+Not yet published. The [judge guide](docs/JUDGE_GUIDE.md) provides a read-only route through existing Devnet evidence.
 
 ## Repository map
 
