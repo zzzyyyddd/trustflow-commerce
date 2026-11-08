@@ -4,9 +4,15 @@
 
 TrustFlow gives a buyer, seller, and named arbitrator a shared settlement record. A buyer funds a SOL milestone, the seller submits an evidence hash, and the buyer approves release to the recorded seller. Before approval, either party can dispute; the arbitrator can then refund the buyer.
 
-**[Live app](https://trustflow-commerce-six.vercel.app)** · **[Judge guide](docs/JUDGE_GUIDE.md)** · **[Devnet evidence](docs/DEVNET_EVIDENCE.md)** · **[Security](docs/SECURITY.md)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Testing](docs/TESTING.md)**
+**[Demo video](https://youtu.be/jUbVeMdXkSc)** · **[Live app](https://trustflow-commerce-six.vercel.app)** · **[Judge guide](docs/JUDGE_GUIDE.md)** · **[Devnet evidence](docs/DEVNET_EVIDENCE.md)** · **[Security](docs/SECURITY.md)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Testing](docs/TESTING.md)**
 
 > **Scope:** Devnet SOL only. This is an experimental, unaudited hackathon project. The program is upgradeable and an upgrade authority was present when checked on 7 November 2026. An evidence hash does not prove delivery or quality. [Trust assumptions and limitations →](docs/SECURITY.md)
+
+## Demo video
+
+[![Watch the TrustFlow Commerce demo on YouTube](https://img.youtube.com/vi/jUbVeMdXkSc/hqdefault.jpg)](https://youtu.be/jUbVeMdXkSc)
+
+[Watch the official demo video](https://youtu.be/jUbVeMdXkSc) · [Read the judge guide](docs/JUDGE_GUIDE.md)
 
 ## Judge quick start
 
@@ -109,10 +115,6 @@ These genuine interface captures show a browser walkthrough. The Happy Path and 
 | Disputed | Refunded by arbitrator |
 | --- | --- |
 | ![Disputed escrow](docs/screenshots/07-disputed.png) | ![Refunded escrow](docs/screenshots/08-refunded.png) |
-
-## Demo video
-
-Not yet published. The [judge guide](docs/JUDGE_GUIDE.md) provides a read-only route through existing Devnet evidence.
 
 ## Repository map
 

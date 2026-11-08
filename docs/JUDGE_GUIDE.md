@@ -2,6 +2,8 @@
 
 TrustFlow Commerce is a Devnet-only milestone escrow for digital work. A buyer funds SOL; a seller submits an evidence hash; the buyer approves release to the seller. Before approval, a dispute routes to an arbitrator who can refund the buyer. The program verifies roles and state, not off-chain delivery.
 
+**[Watch the official demo video](https://youtu.be/jUbVeMdXkSc)**
+
 ## Two-minute read-only route
 
 1. Open the [live app’s historical evidence](https://trustflow-commerce-six.vercel.app/#proof). It separates the happy path, a separate dispute/refund path, and expected rejection tests. These links do not send transactions.

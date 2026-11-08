@@ -2,6 +2,7 @@
 
 This page records **historical script-generated Devnet transactions**. It does not claim that the complete lifecycle was verified through the Phantom browser UI. On 7 November 2026, a read-only `getSignatureStatuses` query against `https://api.devnet.solana.com` at context slot 519615437 returned all 17 recorded signatures and the deployment signature as **finalized** with the expected results. The release and refund transaction details and both escrow accounts were also read from Devnet. No transaction was sent during this verification.
 
+- **Demo:** [Watch the official video](https://youtu.be/jUbVeMdXkSc)
 - **Program:** [8DK8Z1Uz8Nv3KTvVE7kxrm79mijQEL2nC5CAacPHgJ4Z](https://explorer.solana.com/address/8DK8Z1Uz8Nv3KTvVE7kxrm79mijQEL2nC5CAacPHgJ4Z?cluster=devnet)
 - **Deployment:** [finalized transaction](https://explorer.solana.com/tx/4VtsgZ7cvJeReCQ1Fshs6KW1z7Qxgut3s2LLBnvgmaaWAB16wE4aotWC6yasBXKy44rvZkrkcjyhmi3edFpF9dXt?cluster=devnet)
 - **Original run:** [JSON record](../evidence/devnet-lifecycle-1794018466146.json) · **Prior read-only verification:** [JSON snapshot](../evidence/devnet-lifecycle-1794018466146-rpc-verification.json)
